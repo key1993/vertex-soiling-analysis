@@ -1,10 +1,23 @@
 name: Soiling Analysis
 
 on:
-  # Manual trigger from GitHub UI (for testing)
+  # 1) Manual run from GitHub UI (for testing)
   workflow_dispatch:
+    inputs:
+      ha_url:
+        description: "Home Assistant base URL (e.g. https://your-ha-url)"
+        required: true
+        type: string
+      ha_token:
+        description: "Home Assistant long-lived access token"
+        required: true
+        type: string
+      forecast_date:
+        description: "Forecast date (YYYY-MM-DD)"
+        required: true
+        type: string
 
-  # Trigger from Home Assistant via GitHub API
+  # 2) Automatic run from Home Assistant via GitHub API
   repository_dispatch:
     types: [run_soiling_analysis]
 
@@ -23,14 +36,16 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install --upgrade pip
+          python -m pip install --upgrade pip
           pip install -r requirements.txt
 
       - name: Run soiling analysis script
         env:
-          HA_URL: ${{ github.event.client_payload.ha_url }}
-          HA_TOKEN: ${{ github.event.client_payload.ha_token }}
-          FORECAST_DATE: ${{ github.event.client_payload.forecast_date }}
+          # Use values from Home Assistant (repository_dispatch) if present,
+          # otherwise use manual inputs (workflow_dispatch)
+          HA_URL: ${{ github.event.client_payload.ha_url || inputs.ha_url }}
+          HA_TOKEN: ${{ github.event.client_payload.ha_token || inputs.ha_token }}
+          FORECAST_DATE: ${{ github.event.client_payload.forecast_date || inputs.forecast_date }}
         run: |
           echo "Using HA_URL=$HA_URL"
           echo "Forecast date=$FORECAST_DATE"
