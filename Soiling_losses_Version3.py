@@ -964,6 +964,34 @@ def run_theoretical_calculations(weather_data_list):
     hourly_averages = calculate_hourly_averages(all_results)
     
     return all_results, hourly_averages
+    
+def update_daily_soiling_loss_to_ha(loss_value, date_str):
+    """
+    Update Home Assistant input_text.daily_soiling_loss
+    with the daily averaged soiling loss value.
+    """
+    entity_id = "input_text.daily_soiling_loss"
+
+    url = f"{HOME_ASSISTANT_URL}/api/services/input_text/set_value"
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "entity_id": entity_id,
+        # HA expects a string value for input_text
+        "value": f"{loss_value:.2f}"
+    }
+
+    try:
+        resp = requests.post(url, headers=headers, data=json.dumps(payload), timeout=20)
+        resp.raise_for_status()
+        print(
+            f"[OKEY] Updated {entity_id} in Home Assistant with "
+            f"value={loss_value:.2f} for date {date_str}"
+        )
+    except Exception as e:
+        print(f"[WARNING] Failed to update {entity_id} in Home Assistant: {e}")
 
 def main():
     """Main function to orchestrate the entire workflow"""
@@ -1036,8 +1064,16 @@ def main():
                     date_str = idx.strftime('%Y-%m-%d')
                     loss_value = row['Daily Averaged Soiling Losses (%)']
                     print(f"{date_str:<12} {loss_value}")
+
+                # Take the last day's value and push it to Home Assistant
+                last_idx, last_row = list(daily_losses.tail(1).iterrows())[0]
+                last_date_str = last_idx.strftime('%Y-%m-%d')
+                last_loss_value = last_row['Daily Averaged Soiling Losses (%)']
+
+                update_daily_soiling_loss_to_ha(last_loss_value, last_date_str)
             else:
                 print("No daily averaged soiling losses found in the data")
+                
     except Exception as e:
         print(f"Error creating comparison: {e}")
         hourly_comparison_df = pd.DataFrame()
