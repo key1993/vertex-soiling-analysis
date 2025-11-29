@@ -801,116 +801,86 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
     # Return the hourly comparison dataframe
     return hourly_comparison
 
-def export_to_excel(all_results, hourly_averages, theoretical_detailed_df, theoretical_hourly_df, 
-                   actual_minute_df=None, actual_hourly_df=None, 
-                   hourly_comparison_df=None, 
-                   filename="solar_analysis_combined.xlsx"):
+def export_to_excel(
+    all_results,
+    hourly_averages,
+    theoretical_detailed_df,
+    theoretical_hourly_df,
+    actual_minute_df=None,
+    actual_hourly_df=None,
+    hourly_comparison_df=None,
+    filename="solar_analysis_combined.xlsx",
+):
+    """
+    Export all relevant data to an Excel file.
+    This version is defensive: it only reorders columns if
+    'formatted_datetime' actually exists.
+    """
     try:
-        # Try to import openpyxl
-        import openpyxl
-        
-        # Add formatted datetime column to theoretical data
-        all_results = create_datetime_column(all_results)
-        hourly_averages = create_datetime_column(hourly_averages)
-        
-        # Create DataFrames from the theoretical results lists
-        df_detailed = pd.DataFrame(all_results)
-        df_hourly = pd.DataFrame(hourly_averages)
-        
-        # Reorder columns to put formatted_datetime first
-        detailed_cols = ['formatted_datetime'] + [col for col in df_detailed.columns if col != 'formatted_datetime' and col != 'datetime_obj']
-        hourly_cols = ['formatted_datetime'] + [col for col in df_hourly.columns if col != 'formatted_datetime' and col != 'datetime_obj']
-        
-        df_detailed = df_detailed[detailed_cols]
-        df_hourly = df_hourly[hourly_cols]
-        
-        # Remove timezone information from actual data before exporting to Excel
+        import openpyxl  # ensure engine is available
+
+        # --- Build DataFrames from theoretical lists ---
+        if all_results is not None:
+            all_results = create_datetime_column(all_results)
+        if hourly_averages is not None:
+            hourly_averages = create_datetime_column(hourly_averages)
+
+        df_detailed = pd.DataFrame(all_results or [])
+        df_hourly = pd.DataFrame(hourly_averages or [])
+
+        # --- Reorder columns only if 'formatted_datetime' exists ---
+        if "formatted_datetime" in df_detailed.columns:
+            detailed_cols = ["formatted_datetime"] + [
+                col
+                for col in df_detailed.columns
+                if col not in ("formatted_datetime", "datetime_obj")
+            ]
+            df_detailed = df_detailed[detailed_cols]
+
+        if "formatted_datetime" in df_hourly.columns:
+            hourly_cols = ["formatted_datetime"] + [
+                col
+                for col in df_hourly.columns
+                if col not in ("formatted_datetime", "datetime_obj")
+            ]
+            df_hourly = df_hourly[hourly_cols]
+
+        # --- Strip timezone from actual data indexes (Excel doesn't like tz-aware) ---
         if actual_minute_df is not None and not actual_minute_df.empty:
-            # Check if index is DatetimeIndex and has timezone info
-            if isinstance(actual_minute_df.index, pd.DatetimeIndex) and actual_minute_df.index.tzinfo is not None:
+            if isinstance(actual_minute_df.index, pd.DatetimeIndex) and actual_minute_df.index.tz is not None:
                 actual_minute_df = actual_minute_df.copy()
                 actual_minute_df.index = actual_minute_df.index.tz_localize(None)
-        
+
         if actual_hourly_df is not None and not actual_hourly_df.empty:
-            # Check if index is DatetimeIndex and has timezone info
-            if isinstance(actual_hourly_df.index, pd.DatetimeIndex) and actual_hourly_df.index.tzinfo is not None:
+            if isinstance(actual_hourly_df.index, pd.DatetimeIndex) and actual_hourly_df.index.tz is not None:
                 actual_hourly_df = actual_hourly_df.copy()
                 actual_hourly_df.index = actual_hourly_df.index.tz_localize(None)
-        
-        # Create an Excel writer using pandas
-        with pd.ExcelWriter(filename, engine='openpyxl') as writer:
-            # Write theoretical data to sheets
-            df_detailed.to_excel(writer, sheet_name='Theoretical Detailed', index=False)
-            df_hourly.to_excel(writer, sheet_name='Theoretical Hourly', index=False)
-            
-            # Write actual data if available
+
+        # --- Write everything to Excel ---
+        with pd.ExcelWriter(filename, engine="openpyxl") as writer:
+            # Theoretical
+            if not df_detailed.empty:
+                df_detailed.to_excel(writer, sheet_name="Theoretical Detailed", index=False)
+            if not df_hourly.empty:
+                df_hourly.to_excel(writer, sheet_name="Theoretical Hourly", index=False)
+
+            # Actual data
             if actual_minute_df is not None and not actual_minute_df.empty:
-                actual_minute_df.to_excel(writer, sheet_name='Actual Minute by Minute')
-                
+                actual_minute_df.to_excel(writer, sheet_name="Actual Minute by Minute")
             if actual_hourly_df is not None and not actual_hourly_df.empty:
-                actual_hourly_df.to_excel(writer, sheet_name='Actual Hourly')
-            
-            # Write hourly comparison with specific column order if available
+                actual_hourly_df.to_excel(writer, sheet_name="Actual Hourly")
+
+            # Comparison
             if hourly_comparison_df is not None and not hourly_comparison_df.empty:
-                # Order columns according to user requirements
-                desired_cols = [
-                    'Theoretical DC Output (kW)', 
-                    'Actual DC Power (kW)',
-                    'DC Output Difference (%)',
-                    'MPPT1 Voltage', 
-                    'MPPT2 Voltage',
-                    'MPPT Voltage Difference (%)',
-                    'MPPT1 Current', 
-                    'MPPT2 Current',
-                    'MPPT Current Difference (%)',
-                    'Theoretical DC Output Limited (kW)',
-                    'Actual DC Power Limited (kW)',
-                    'Theoretical DC (Balanced MPPTs)',
-                    'Actual DC (Balanced MPPTs)',
-                    'DC Difference (Balanced MPPTs) (%)',
-                    'Daily Averaged Soiling Losses (%)'
-                ]
-                
-                # Only keep columns that actually exist in the DataFrame
-                available_cols = [col for col in desired_cols if col in hourly_comparison_df.columns]
-                
-                # Make a copy to avoid modifying the original
-                export_df = hourly_comparison_df.copy()
-                
-                # Remove the temporary 'date' column if it exists
-                if 'date' in export_df.columns:
-                    export_df = export_df.drop('date', axis=1)
-                
-                # Export to Excel with the selected columns
-                try:
-                    export_df[available_cols].to_excel(writer, sheet_name='Hourly Comparison')
-                except Exception:
-                    # Try a simpler export as fallback
-                    try:
-                        export_df.to_excel(writer, sheet_name='Hourly Comparison')
-                    except:
-                        pass
-            
-            # Auto-adjust column widths
-            for sheet_name in writer.sheets:
-                worksheet = writer.sheets[sheet_name]
-                for idx, col in enumerate(worksheet.columns, 1):
-                    max_length = 0
-                    column = openpyxl.utils.get_column_letter(idx)
-                    for cell in col:
-                        try:
-                            if len(str(cell.value)) > max_length:
-                                max_length = len(str(cell.value))
-                        except:
-                            pass
-                    adjusted_width = (max_length + 2)
-                    worksheet.column_dimensions[column].width = adjusted_width
-        
-        return filename
-        
+                # Simple: just dump as-is. If you want custom ordering later, we can add it back safely.
+                hourly_comparison_df.to_excel(writer, sheet_name="Hourly Comparison")
+
+        return True
+
     except Exception as e:
         print(f"Error exporting to Excel: {e}")
         return None
+
 
 def run_theoretical_calculations(weather_data_list):
     """Run theoretical calculations based on weather data"""
