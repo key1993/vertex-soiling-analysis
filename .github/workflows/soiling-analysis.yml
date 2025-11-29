@@ -1,7 +1,6 @@
 name: Soiling Analysis
 
 on:
-  # 1) Manual run from GitHub UI (for testing)
   workflow_dispatch:
     inputs:
       ha_url:
@@ -17,7 +16,6 @@ on:
         required: true
         type: string
 
-  # 2) Automatic run from Home Assistant via GitHub API
   repository_dispatch:
     types: [run_soiling_analysis]
 
@@ -25,9 +23,15 @@ jobs:
   run-soiling:
     runs-on: ubuntu-latest
 
+    # Make sure this job is allowed to write to the repo
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
+        with:
+          persist-credentials: true  # needed so git push works with GITHUB_TOKEN
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -50,3 +54,32 @@ jobs:
           echo "Using HA_URL=$HA_URL"
           echo "Forecast date=$FORECAST_DATE"
           python Soiling_losses_Version3.py "$HA_URL" "$HA_TOKEN" "$FORECAST_DATE"
+
+      - name: Move Excel report into reports/ folder
+        if: success()
+        run: |
+          mkdir -p reports
+          # Move any generated .xlsx files into reports/
+          mv *.xlsx reports/ || echo "No Excel files to move"
+          ls -R
+
+      - name: Commit Excel report to repo
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Check if there are any new Excel files in reports/
+          if ls reports/*.xlsx 1> /dev/null 2>&1; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+
+            git add reports/*.xlsx
+
+            # Commit message includes forecast date if available
+            git commit -m "Add soiling report for ${FORECAST_DATE:-unknown date} [skip ci]" || echo "Nothing to commit"
+
+            # Push back to the same branch this workflow ran on
+            git push origin HEAD:${{ github.ref_name }}
+          else
+            echo "No Excel files found in reports/, nothing to commit."
+          fi
