@@ -1007,7 +1007,7 @@ def main():
     actual_minute_df, actual_hourly_df = fetch_home_assistant_data_range(start_date, end_date)
     
     # Step 9: Create comprehensive comparison between theoretical and actual data
-        print("\n=== PHASE 4: CREATING COMPARISON ANALYSIS ===")
+    print("\n=== PHASE 4: CREATING COMPARISON ANALYSIS ===")
     hourly_comparison_df = None
     try:
         hourly_comparison_df = create_complete_comparison(
@@ -1020,15 +1020,17 @@ def main():
 
         if hourly_comparison_df is None:
             print("[INFO] No comparison DataFrame returned (hourly_comparison_df is None).")
+
         elif hourly_comparison_df.empty:
             print("[INFO] Comparison DataFrame is empty – likely no usable actual data "
                   "for this date range (e.g. today not finished yet).")
+
         else:
             print(f"[INFO] Comparison DataFrame has {len(hourly_comparison_df)} rows.")
+
             # Display Daily Averaged Soiling Losses
             print("\n=== DAILY AVERAGED SOILING LOSSES ===")
 
-            # Extract rows with daily averages (non-null values in the column)
             col_name = "Daily Averaged Soiling Losses (%)"
             if col_name in hourly_comparison_df.columns:
                 daily_losses = hourly_comparison_df[hourly_comparison_df[col_name].notna()]
@@ -1042,17 +1044,20 @@ def main():
                         loss_value = row[col_name]
                         print(f"{date_str:<12} {loss_value}")
 
-                    # Take the last day's value and push it to Home Assistant
+                    # Push last day's value to HA
                     last_idx, last_row = list(daily_losses.tail(1).iterrows())[0]
                     last_date_str = last_idx.strftime("%Y-%m-%d")
                     last_loss_value = last_row[col_name]
 
                     update_daily_soiling_loss_to_ha(last_loss_value, last_date_str)
+
                 else:
                     print("[INFO] No daily averaged soiling losses found (daily_losses is empty).")
+
             else:
                 print(f"[INFO] Column '{col_name}' not found in hourly_comparison_df. "
                       "No soiling loss can be calculated.")
+
     except Exception as e:
         print(f"Error creating comparison: {e}")
         hourly_comparison_df = pd.DataFrame()
