@@ -405,8 +405,8 @@ def merge_data(weather_data, solar_forecast, altitude):
     return merged_output
 
 def get_iam_for_angle(angle, angles=IAM_ANGLES, values=IAM_VALUES):
-    if abs(angle - 34. 54) < 0.01:
-        return 0. 9975
+    if abs(angle - 34.54) < 0.01:
+        return 0.9975
     iam_interp = PchipInterpolator(angles, values, extrapolate=True)
     return float(iam_interp(angle))
 
