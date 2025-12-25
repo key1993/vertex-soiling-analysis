@@ -308,8 +308,79 @@ def fetch_solar_forecast(date):
         print(solar_response.text)
         raise Exception("Failed to fetch solar forecast data")
 
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate distance between two coordinates using Haversine formula.
+    Returns distance in kilometers.
+    """
+    from math import radians, sin, cos, sqrt, atan2
+    
+    R = 6371  # Earth's radius in km
+    
+    lat1, lon1 = radians(lat1), radians(lon1)
+    lat2, lon2 = radians(lat2), radians(lon2)
+    
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    distance = R * c
+    
+    return distance
+
 def fetch_weather_data(date):
-    """Fetch historical weather data from OpenWeatherMap API"""
+    """Fetch historical weather data from OpenWeatherMap API or cache"""
+    print(f"[INFO] Checking for cached weather data for {date}...")
+    
+    # Check for cached weather data
+    cache_file = os.path.join("weather_cache", f"{date}.json")
+    
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r') as f:
+                cached_data = json.load(f)
+            
+            # Extract cache location
+            cache_lat = cached_data.get("coordinates", {}).get("lat")
+            cache_lon = cached_data.get("coordinates", {}).get("lon")
+            
+            if cache_lat is not None and cache_lon is not None:
+                # Calculate distance between user location and cached location
+                distance = calculate_distance(LATITUDE, LONGITUDE, cache_lat, cache_lon)
+                
+                if distance < 30:
+                    print(f"[OKEY] Found cached weather data {distance:.1f} km away - using cache")
+                    
+                    # Convert cached data to expected format
+                    weather_data = []
+                    date_obj = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                    
+                    for hour_data in cached_data.get("ambient_weather", []):
+                        hour = hour_data.get("hour", 0)
+                        utc_dt = date_obj + timedelta(hours=hour)
+                        timestamp_str = utc_dt.strftime('%Y-%m-%dT%H:%M:%S.0000000Z')
+                        
+                        entry = {
+                            "date": date,
+                            "timestamp_utc": timestamp_str,
+                            "wind_speed": hour_data.get("wind_speed"),
+                            "ambient_temp": hour_data.get("temp")
+                        }
+                        weather_data.append(entry)
+                    
+                    print(f"[OKEY] Successfully retrieved weather data for {len(weather_data)} hours from cache.")
+                    return weather_data
+                else:
+                    print(f"[INFO] Cached data too far ({distance:.1f} km > 30 km) - fetching from API")
+            else:
+                print(f"[INFO] Cached data missing location info - fetching from API")
+        except Exception as e:
+            print(f"[INFO] Error reading cache: {e} - fetching from API")
+    else:
+        print(f"[INFO] No cached data found - fetching from API")
+    
+    # Fall back to API calls
     print(f"[INFO] Fetching Weather Data for {date}...")
     
     date_obj = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
