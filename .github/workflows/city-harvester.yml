@@ -1,0 +1,35 @@
+name: Daily City Weather Harvester
+
+on:
+  schedule:
+    - cron: '0 17 * * *' # 8:00 PM Jordan Time
+  workflow_dispatch:
+
+jobs:
+  harvest:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Harvester
+        run: python city_harvester.py
+
+      - name: Commit Daily JSON
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add weather_cache/*.json
+          git commit -m "Add weather data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes"
+          git push
