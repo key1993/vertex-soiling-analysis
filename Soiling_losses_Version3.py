@@ -1020,7 +1020,11 @@ def main():
         print("Could not determine date range from weather data")
         return
     
-    output_filename = f"solar_analysis_{start_date.date()}_to_{end_date.date()}.xlsx"
+    # Create reports directory if it doesn't exist
+    import os
+    os.makedirs('reports', exist_ok=True)
+
+    output_filename = f"reports/solar_analysis_{start_date. date()}_to_{end_date.date()}.xlsx"
     
     # Step 9: Convert theoretical results to DataFrames
     theoretical_detailed_df, theoretical_hourly_df = convert_theoretical_to_dataframe(all_results, hourly_averages)
