@@ -16,6 +16,7 @@ from astral.sun import sun
 from urllib.parse import quote
 import sys
 import os
+from math import radians, sin, cos, sqrt, atan2
 
 # === CONFIGURATION ===
 LATITUDE = 0
@@ -35,6 +36,10 @@ IAM_VALUES = [1.000, 1.000, 0.995, 0.962, 0.936, 0.903, 0.851, 0.754, 0.000]
 INVERTER_CAPACITY_KW = 0
 
 ALTITUDE = 770  # Default altitude, will be updated by get_altitude()
+
+# Weather cache configuration
+EARTH_RADIUS_KM = 6371  # Earth's radius in kilometers
+CACHE_DISTANCE_THRESHOLD_KM = 30  # Maximum distance (km) to use cached weather data
 
 # Home Assistant configuration
 HOME_ASSISTANT_URL = "http://default-ha-url"
@@ -313,10 +318,6 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     Calculate distance between two coordinates using Haversine formula.
     Returns distance in kilometers.
     """
-    from math import radians, sin, cos, sqrt, atan2
-    
-    R = 6371  # Earth's radius in km
-    
     lat1, lon1 = radians(lat1), radians(lon1)
     lat2, lon2 = radians(lat2), radians(lon2)
     
@@ -325,7 +326,7 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     
     a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
     c = 2 * atan2(sqrt(a), sqrt(1-a))
-    distance = R * c
+    distance = EARTH_RADIUS_KM * c
     
     return distance
 
@@ -349,7 +350,7 @@ def fetch_weather_data(date):
                 # Calculate distance between user location and cached location
                 distance = calculate_distance(LATITUDE, LONGITUDE, cache_lat, cache_lon)
                 
-                if distance < 30:
+                if distance < CACHE_DISTANCE_THRESHOLD_KM:
                     print(f"[OKEY] Found cached weather data {distance:.1f} km away - using cache")
                     
                     # Convert cached data to expected format
@@ -372,7 +373,7 @@ def fetch_weather_data(date):
                     print(f"[OKEY] Successfully retrieved weather data for {len(weather_data)} hours from cache.")
                     return weather_data
                 else:
-                    print(f"[INFO] Cached data too far ({distance:.1f} km > 30 km) - fetching from API")
+                    print(f"[INFO] Cached data too far ({distance:.1f} km > {CACHE_DISTANCE_THRESHOLD_KM} km) - fetching from API")
             else:
                 print(f"[INFO] Cached data missing location info - fetching from API")
         except Exception as e:
