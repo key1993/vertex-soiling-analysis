@@ -414,7 +414,7 @@ def calculate_ground_reflected(surface_tilt, ghi, albedo=0.2):
     tilt_rad = np.radians(surface_tilt)
     return ghi * albedo * (1 - np.cos(tilt_rad)) / 2
 
-def calculate_tcell_faiman(ghi, ambient_temp, wind_speed, u_c=25. 0, u_v=6.84):
+def calculate_tcell_faiman(ghi, ambient_temp, wind_speed, u_c=25.0, u_v=6.84):
     u = u_c + u_v * wind_speed
     return round(ambient_temp + ghi / u, 2)
 
