@@ -1,85 +1,129 @@
-name: Soiling Analysis
+name: Solar Soiling Analysis
 
-on:
-  workflow_dispatch:
-    inputs:
-      ha_url:
-        description: "Home Assistant base URL (e.g. https://your-ha-url)"
-        required: true
-        type: string
-      ha_token:
-        description: "Home Assistant long-lived access token"
-        required: true
-        type: string
-      forecast_date:
-        description: "Forecast date (YYYY-MM-DD)"
-        required: true
-        type: string
-
+on: 
   repository_dispatch:
     types: [run_soiling_analysis]
+  workflow_dispatch:  # Allow manual trigger
+    inputs:
+      ha_url: 
+        description: 'Home Assistant URL'
+        required: true
+      ha_token: 
+        description: 'Home Assistant Token'
+        required: true
+      forecast_date:
+        description: 'Forecast Date (YYYY-MM-DD)'
+        required: true
+        default: '2025-12-25'
 
 jobs:
-  run-soiling:
+  # ⭐ NEW JOB: Check if day is sunny
+  check-sunny-day:
     runs-on: ubuntu-latest
-
-    # Make sure this job is allowed to write to the repo
-    permissions:
-      contents: write
-
+    outputs:
+      is_sunny: ${{ steps.sunny_check.outputs.is_sunny }}
+    
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: true  # needed so git push works with GITHUB_TOKEN
-
+      - name:  Checkout repository
+        uses: actions/checkout@v3
+      
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
-          python-version: "3.11"
+          python-version:  '3.10'
+      
+      - name:  Install dependencies (minimal)
+        run: |
+          pip install requests
+      
+      - name: Check if day is sunny
+        id: sunny_check
+        continue-on-error: true
+        run: |
+          python check_sunny_day.py \
+            "${{ github.event.client_payload.ha_url || github.event.inputs.ha_url }}" \
+            "${{ github.event.client_payload.ha_token || github.event.inputs.ha_token }}" \
+            "${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}"
+          
+          if [ $? -eq 0 ]; then
+            echo "is_sunny=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_sunny=false" >> $GITHUB_OUTPUT
+          fi
 
+  # ⭐ MODIFIED JOB: Only run full analysis if sunny
+  run-soiling-analysis:
+    runs-on: ubuntu-latest
+    needs: check-sunny-day
+    if: needs.check-sunny-day.outputs.is_sunny == 'true'  # ⭐ ONLY RUN IF SUNNY
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
           pip install -r requirements.txt
-
-      - name: Run soiling analysis script
-        env:
-          # Use values from Home Assistant (repository_dispatch) if present,
-          # otherwise use manual inputs (workflow_dispatch)
-          HA_URL: ${{ github.event.client_payload.ha_url || inputs.ha_url }}
-          HA_TOKEN: ${{ github.event.client_payload.ha_token || inputs.ha_token }}
-          FORECAST_DATE: ${{ github.event.client_payload.forecast_date || inputs.forecast_date }}
+      
+      - name: Run soiling analysis
         run: |
-          echo "Using HA_URL=$HA_URL"
-          echo "Forecast date=$FORECAST_DATE"
-          python Soiling_losses_Version3.py "$HA_URL" "$HA_TOKEN" "$FORECAST_DATE"
-
-      - name: Move Excel report into reports/ folder
+          python Soiling_losses_Version3.py \
+            "${{ github. event.client_payload.ha_url || github.event.inputs. ha_url }}" \
+            "${{ github.event.client_payload.ha_token || github. event.inputs.ha_token }}" \
+            "${{ github. event.client_payload.forecast_date || github.event.inputs. forecast_date }}"
+      
+      - name: Upload results
+        uses: actions/upload-artifact@v3
+        with: 
+          name: soiling-analysis-results
+          path: |
+            *. xlsx
+            *.png
+          retention-days: 30
+      
+      - name: Notify Home Assistant (Success)
         if: success()
         run: |
-          mkdir -p reports
-          # Move any generated .xlsx files into reports/
-          mv *.xlsx reports/ || echo "No Excel files to move"
-          ls -R
-
-      - name: Commit Excel report to repo
-        if: success()
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          curl -X POST "${{ github.event.client_payload.ha_url }}/api/services/persistent_notification/create" \
+            -H "Authorization: Bearer ${{ github.event.client_payload.ha_token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "title": "✅ Soiling Analysis Complete",
+              "message": "Analysis completed successfully for ${{ github.event.client_payload.forecast_date }}.  Check artifacts for results.",
+              "notification_id": "soiling_analysis_result"
+            }'
+      
+      - name: Notify Home Assistant (Failure)
+        if: failure()
         run: |
-          # Check if there are any new Excel files in reports/
-          if ls reports/*.xlsx 1> /dev/null 2>&1; then
-            git config user.name "github-actions[bot]"
-            git config user.email "github-actions[bot]@users.noreply.github.com"
+          curl -X POST "${{ github.event.client_payload. ha_url }}/api/services/persistent_notification/create" \
+            -H "Authorization: Bearer ${{ github.event.client_payload.ha_token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "title":  "❌ Soiling Analysis Failed",
+              "message": "Analysis failed for ${{ github.event.client_payload.forecast_date }}. Check workflow logs.",
+              "notification_id": "soiling_analysis_result"
+            }'
 
-            git add reports/*.xlsx
-
-            # Commit message includes forecast date if available
-            git commit -m "Add soiling report for ${FORECAST_DATE:-unknown date} [skip ci]" || echo "Nothing to commit"
-
-            # Push back to the same branch this workflow ran on
-            git push origin HEAD:${{ github.ref_name }}
-          else
-            echo "No Excel files found in reports/, nothing to commit."
-          fi
+  # ⭐ NEW JOB:  Notify if day was cloudy (analysis skipped)
+  notify-cloudy-day:
+    runs-on: ubuntu-latest
+    needs:  check-sunny-day
+    if:  needs.check-sunny-day. outputs.is_sunny == 'false'
+    
+    steps:
+      - name: Notify Home Assistant - Cloudy Day
+        run: |
+          curl -X POST "${{ github.event.client_payload.ha_url || github.event.inputs.ha_url }}/api/services/persistent_notification/create" \
+            -H "Authorization: Bearer ${{ github.event.client_payload. ha_token || github.event.inputs.ha_token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "title": "☁️ Cloudy Day - Analysis Skipped",
+              "message": "The day ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }} is too cloudy for reliable soiling analysis.  Analysis was skipped.",
+              "notification_id": "soiling_analysis_cloudy"
+            }'
