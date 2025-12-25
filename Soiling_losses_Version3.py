@@ -11,7 +11,7 @@ import pytz
 from collections import defaultdict
 import re
 from zoneinfo import ZoneInfo
-from astral. location import LocationInfo
+from astral.location import LocationInfo
 from astral.sun import sun
 from urllib.parse import quote
 import sys
@@ -42,7 +42,7 @@ ACCESS_TOKEN = "default-token"
 FORECAST_DATE = datetime.now().strftime("%Y-%m-%d")
 
 if len(sys.argv) >= 4:
-    HOME_ASSISTANT_URL = sys. argv[1]
+    HOME_ASSISTANT_URL = sys.argv[1]
     ACCESS_TOKEN = sys.argv[2]
     FORECAST_DATE = sys.argv[3]
     print(f"[INFO] Using HA URL: {HOME_ASSISTANT_URL}")
@@ -54,7 +54,7 @@ SENSOR_DEFINITIONS = {
     'MPPT1 Voltage': "sensor.mppt1_voltage",
     'MPPT2 Voltage': "sensor.mppt2_voltage",
     'MPPT1 Current': "sensor.mppt1_current",
-    'MPPT2 Current':  "sensor.mppt2_current",
+    'MPPT2 Current': "sensor.mppt2_current",
     'AC Output': "sensor.total_ac_power",
     'DC Output': "sensor.total_dc_power"
 }
@@ -102,7 +102,7 @@ def is_sunny_day(solar_forecast_data, threshold=0.75, min_sunny_hours=6):
     cloud_ratios = []
     hourly_status = []
     
-    for interval in solar_forecast_data. get('intervals', []):
+    for interval in solar_forecast_data.get('intervals', []):
         try:
             clear_ghi = interval['avg_irradiance']['clear_sky']['ghi']
             cloudy_ghi = interval['avg_irradiance']['cloudy_sky']['ghi']
@@ -301,7 +301,7 @@ def fetch_solar_forecast(date):
     
     if solar_response.status_code == 200:
         solar_data = solar_response.json()
-        print(f"[OKEY] Successfully retrieved solar forecast with {len(solar_data. get('intervals', []))} hourly records.")
+        print(f"[OKEY] Successfully retrieved solar forecast with {len(solar_data.get('intervals', []))} hourly records.")
         return solar_data
     else:
         print(f"[INFO] Solar API request failed:  {solar_response.status_code}")
@@ -322,7 +322,7 @@ def fetch_weather_data(date):
     
     for ts in timestamps:
         utc_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-        timestamp_str = utc_dt.strftime('%Y-%m-%dT%H:%M:%S. 0000000Z')
+        timestamp_str = utc_dt.strftime('%Y-%m-%dT%H:%M:%S.0000000Z')
         
         print(f"  Fetching {timestamp_str} ...")
         
@@ -348,7 +348,7 @@ def fetch_weather_data(date):
             except Exception as e:
                 print(f"Error parsing data for {timestamp_str}: {e}")
         else:
-            print(f"Failed for {timestamp_str}: {response. status_code}")
+            print(f"Failed for {timestamp_str}: {response.status_code}")
     
     print(f"[OKEY] Successfully retrieved weather data for {len(weather_data)} hours.")
     return weather_data
@@ -361,7 +361,7 @@ def merge_data(weather_data, solar_forecast, altitude):
     forecast_map = {}
     
     for interval in solar_forecast["intervals"]:
-        utc_time = pd. Timestamp(f"{forecast_date}T{interval['start']}: 00", tz="UTC")
+        utc_time = pd.Timestamp(f"{forecast_date}T{interval['start']}:00", tz="UTC")
         corrected_time = utc_time - pd.Timedelta(hours=3)
         forecast_map[corrected_time] = {
             "ghi": interval["avg_irradiance"]["cloudy_sky"]["ghi"],
@@ -373,7 +373,7 @@ def merge_data(weather_data, solar_forecast, altitude):
     
     for entry in weather_data:
         timestamp_utc = pd.Timestamp(entry["timestamp_utc"]).tz_convert("UTC")
-        local_time = timestamp_utc. tz_convert(TIMEZONE)
+        local_time = timestamp_utc.tz_convert(TIMEZONE)
         
         time_str = local_time.strftime("%H:%M:%S")
         actual_time = local_time.replace(minute=30, second=0, microsecond=0)
@@ -385,9 +385,9 @@ def merge_data(weather_data, solar_forecast, altitude):
             longitude=LONGITUDE,
             altitude=altitude
         )
-        zenith = round(solpos["zenith"]. iloc[0], 2)
+        zenith = round(solpos["zenith"].iloc[0], 2)
         
-        forecast = forecast_map.get(timestamp_utc, {"ghi": 0, "dni": 0, "dhi":  0})
+        forecast = forecast_map.get(timestamp_utc, {"ghi": 0, "dni": 0, "dhi": 0})
         
         merged_output.append({
             "date": entry["date"],
@@ -433,7 +433,7 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
     )
     aoi_value = aoi_series.iloc[0]
 
-    dni_extra = pvlib.irradiance. get_extra_radiation(times)
+    dni_extra = pvlib.irradiance.get_extra_radiation(times)
     airmass = pvlib.atmosphere.get_relative_airmass(solar_position['apparent_zenith'])
     weather_data = pd.DataFrame({'dni': [dni], 'ghi': [ghi], 'dhi': [dhi]}, index=times)
 
@@ -475,17 +475,17 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
     poa_after_iam = beam_after_iam + isotropic + circumsolar + alb_trp
 
     return {
-        'BeamTrp': beam_trp. iloc[0],
+        'BeamTrp': beam_trp.iloc[0],
         'DifITrp': isotropic.iloc[0],
         'CircTrp': circumsolar.iloc[0],
         'HBndTrp': horizon.iloc[0],
         'AlbTrp': alb_trp.iloc[0],
         'poa_global': poa_global.iloc[0],
-        'solar_zenith': solar_position['apparent_zenith']. iloc[0],
+        'solar_zenith': solar_position['apparent_zenith'].iloc[0],
         'solar_azimuth': solar_position['azimuth'].iloc[0],
         'aoi':  aoi_value,
         'iam_value': iam_value,
-        'iam_loss': iam_loss.iloc[0] if isinstance(iam_loss, pd. Series) else iam_loss,
+        'iam_loss': iam_loss.iloc[0] if isinstance(iam_loss, pd.Series) else iam_loss,
         'beam_after_iam': beam_after_iam.iloc[0],
         'poa_global_after_iam': poa_after_iam.iloc[0]
     }, weather_data
@@ -508,11 +508,11 @@ def calculate_hourly_averages(all_results):
     for result in all_results:
         date = result['date']
         hour = int(result['actual_time'].split(':')[0])
-        key = f"{date}_{hour: 02d}"
+        key = f"{date}_{hour:02d}"
         
         hourly_data[key]['ghi'].append(result['ghi'])
         hourly_data[key]['dni'].append(result['dni'])
-        hourly_data[key]['poa']. append(result['poa'])
+        hourly_data[key]['poa'].append(result['poa'])
         hourly_data[key]['tcell'].append(result['tcell'])
         hourly_data[key]['dc_output'].append(result['dc_output'])
         hourly_data[key]['date'] = date
@@ -532,7 +532,7 @@ def calculate_hourly_averages(all_results):
         }
         hourly_averages.append(averages)
     
-    hourly_averages. sort(key=lambda x: (x['date'], x['hour']))
+    hourly_averages.sort(key=lambda x: (x['date'], x['hour']))
     
     return hourly_averages
 
@@ -610,7 +610,7 @@ def convert_theoretical_to_dataframe(all_results, hourly_averages):
             )
             datetime_indices.append(dt)
         except Exception:
-            datetime_indices.append(datetime. now())
+            datetime_indices.append(datetime.now())
     
     numeric_cols = ['ghi', 'dni', 'poa', 'tcell', 'dc_output']
     for col in numeric_cols:
@@ -618,7 +618,7 @@ def convert_theoretical_to_dataframe(all_results, hourly_averages):
             detailed_df[col] = pd.to_numeric(detailed_df[col], errors='coerce')
     
     detailed_df['datetime'] = datetime_indices
-    detailed_df. set_index('datetime', inplace=True)
+    detailed_df.set_index('datetime', inplace=True)
     
     hourly_df = pd.DataFrame(hourly_averages)
     
@@ -634,12 +634,12 @@ def convert_theoretical_to_dataframe(all_results, hourly_averages):
                 minute=0,
                 second=0
             )
-            hourly_indices. append(dt)
+            hourly_indices.append(dt)
         except Exception:
-            hourly_indices. append(datetime.now())
+            hourly_indices.append(datetime.now())
     
     for col in numeric_cols:
-        if col in hourly_df. columns:
+        if col in hourly_df.columns:
             hourly_df[col] = pd.to_numeric(hourly_df[col], errors='coerce')
     
     hourly_df['datetime'] = hourly_indices
@@ -653,7 +653,7 @@ def get_ha_config():
     try:
         response = requests.get(api_url, headers=headers)
         response.raise_for_status()
-        return response. json()
+        return response.json()
     except requests.exceptions.RequestException as e:
         return None
 
@@ -703,12 +703,12 @@ def fetch_home_assistant_data_range(start_date, end_date):
     if df_raw.empty:
         return None, None
 
-    df_raw. index = df_raw.index.tz_convert(local_timezone)
+    df_raw.index = df_raw.index.tz_convert(local_timezone)
     df_clean = df_raw.resample('1min').mean().interpolate(method='linear')
 
     df_clean['Total DC Power (W)'] = df_clean['DC Output']
     efficiency = (df_clean['AC Output'] / df_clean['Total DC Power (W)']) * 100
-    df_clean['Inverter Efficiency (%)'] = efficiency. replace([np.inf, -np.inf], np.nan).fillna(0).clip(0, 100)
+    df_clean['Inverter Efficiency (%)'] = efficiency.replace([np.inf, -np.inf], np.nan).fillna(0).clip(0, 100)
 
     df_minute_report = df_clean.copy()
     df_hourly_actual_report = df_minute_report.resample('h').mean()
@@ -719,19 +719,19 @@ def fetch_home_assistant_data_range(start_date, end_date):
         'AC Output', 'Total DC Power (W)', 'Inverter Efficiency (%)',
         'MPPT1 Voltage', 'MPPT1 Current', 'MPPT2 Voltage', 'MPPT2 Current'
     ]
-    df_minute_for_excel = df_minute_report[minute_cols_final]. round(2)
+    df_minute_for_excel = df_minute_report[minute_cols_final].round(2)
     
     hourly_cols_final = [
         'AC Output (kWh)', 'Total DC Power (W)', 'Inverter Efficiency (%)',
         'MPPT1 Voltage', 'MPPT1 Current', 'MPPT2 Voltage', 'MPPT2 Current'
     ]
     existing_hourly_cols = [col for col in hourly_cols_final if col in df_hourly_actual_report.columns]
-    df_hourly_for_excel = df_hourly_actual_report[existing_hourly_cols]. round(2)
+    df_hourly_for_excel = df_hourly_actual_report[existing_hourly_cols].round(2)
     
     timezone_info = local_timezone if df_minute_for_excel.index.tzinfo else None
     
     if timezone_info:
-        df_minute_for_excel. index = df_minute_for_excel.index.tz_localize(None)
+        df_minute_for_excel.index = df_minute_for_excel.index.tz_localize(None)
         df_hourly_for_excel.index = df_hourly_for_excel.index.tz_localize(None)
     
     return df_minute_for_excel, df_hourly_for_excel
@@ -750,16 +750,16 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         for idx in hourly_comparison.index:
             if idx in actual_hourly_df.index:
                 if 'Total DC Power (W)' in actual_hourly_df.columns:
-                    hourly_comparison. loc[idx, 'Actual DC Power (kW)'] = actual_hourly_df.loc[idx, 'Total DC Power (W)'] / 1000
+                    hourly_comparison.loc[idx, 'Actual DC Power (kW)'] = actual_hourly_df.loc[idx, 'Total DC Power (W)'] / 1000
                 
                 if 'MPPT1 Voltage' in actual_hourly_df.columns: 
-                    hourly_comparison. loc[idx, 'MPPT1 Voltage'] = actual_hourly_df.loc[idx, 'MPPT1 Voltage']
+                    hourly_comparison.loc[idx, 'MPPT1 Voltage'] = actual_hourly_df.loc[idx, 'MPPT1 Voltage']
                 if 'MPPT2 Voltage' in actual_hourly_df.columns:
                     hourly_comparison.loc[idx, 'MPPT2 Voltage'] = actual_hourly_df.loc[idx, 'MPPT2 Voltage']
                 if 'MPPT1 Current' in actual_hourly_df.columns:
-                    hourly_comparison.loc[idx, 'MPPT1 Current'] = actual_hourly_df. loc[idx, 'MPPT1 Current']
+                    hourly_comparison.loc[idx, 'MPPT1 Current'] = actual_hourly_df.loc[idx, 'MPPT1 Current']
                 if 'MPPT2 Current' in actual_hourly_df.columns:
-                    hourly_comparison.loc[idx, 'MPPT2 Current'] = actual_hourly_df. loc[idx, 'MPPT2 Current']
+                    hourly_comparison.loc[idx, 'MPPT2 Current'] = actual_hourly_df.loc[idx, 'MPPT2 Current']
     
     if hourly_comparison.empty:
         return hourly_comparison
@@ -791,7 +791,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         hourly_comparison['MPPT Current Difference (%)'] = pd.Series(dtype='float64')
         
         mask_valid_mppt_v = (
-            hourly_comparison['MPPT1 Voltage']. notna() & 
+            hourly_comparison['MPPT1 Voltage'].notna() & 
             hourly_comparison['MPPT2 Voltage'].notna() & 
             (hourly_comparison['MPPT1 Voltage'] > 0) & 
             (hourly_comparison['MPPT2 Voltage'] > 0)
@@ -805,7 +805,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         ).round(2)
         
         mask_valid_mppt_c = (
-            hourly_comparison['MPPT1 Current']. notna() & 
+            hourly_comparison['MPPT1 Current'].notna() & 
             hourly_comparison['MPPT2 Current'].notna() & 
             (hourly_comparison['MPPT1 Current'] > 0) & 
             (hourly_comparison['MPPT2 Current'] > 0)
@@ -814,7 +814,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         hourly_comparison.loc[mask_valid_mppt_c, 'MPPT Current Difference (%)'] = (
             abs(hourly_comparison.loc[mask_valid_mppt_c, 'MPPT1 Current'] - 
                 hourly_comparison.loc[mask_valid_mppt_c, 'MPPT2 Current']) / 
-            ((hourly_comparison. loc[mask_valid_mppt_c, 'MPPT1 Current'] + 
+            ((hourly_comparison.loc[mask_valid_mppt_c, 'MPPT1 Current'] + 
               hourly_comparison.loc[mask_valid_mppt_c, 'MPPT2 Current']) / 2) * 100
         ).round(2)
         
@@ -827,7 +827,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         mask_balanced = (
             (hourly_comparison['Theoretical DC Output Limited (kW)'] != 'N/A') & 
             (hourly_comparison['Actual DC Power Limited (kW)'] != 'N/A') &
-            hourly_comparison['MPPT Voltage Difference (%)']. notna() &
+            hourly_comparison['MPPT Voltage Difference (%)'].notna() &
             hourly_comparison['MPPT Current Difference (%)'].notna() &
             (hourly_comparison['MPPT Voltage Difference (%)'] < 5) &
             (hourly_comparison['MPPT Current Difference (%)'] < 5) &
@@ -838,19 +838,19 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         hourly_comparison.loc[mask_balanced, 'Theoretical DC (Balanced MPPTs)'] = hourly_comparison.loc[mask_balanced, 'Theoretical DC Output Limited (kW)']
         hourly_comparison.loc[mask_balanced, 'Actual DC (Balanced MPPTs)'] = hourly_comparison.loc[mask_balanced, 'Actual DC Power Limited (kW)']
         
-        theo_balanced_numeric = pd.to_numeric(hourly_comparison. loc[mask_balanced, 'Theoretical DC (Balanced MPPTs)'], errors='coerce')
+        theo_balanced_numeric = pd.to_numeric(hourly_comparison.loc[mask_balanced, 'Theoretical DC (Balanced MPPTs)'], errors='coerce')
         actual_balanced_numeric = pd.to_numeric(hourly_comparison.loc[mask_balanced, 'Actual DC (Balanced MPPTs)'], errors='coerce')
         
-        valid_rows = theo_balanced_numeric. notna() & (theo_balanced_numeric > 0) & actual_balanced_numeric. notna()
+        valid_rows = theo_balanced_numeric.notna() & (theo_balanced_numeric > 0) & actual_balanced_numeric.notna()
         if not valid_rows.empty:
             diff_pct = ((theo_balanced_numeric[valid_rows] - actual_balanced_numeric[valid_rows]) / 
                         theo_balanced_numeric[valid_rows] * 100).round(2)
             
             diff_series = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
-            diff_series. loc[valid_rows. index[valid_rows]] = diff_pct. loc[valid_rows.index[valid_rows]].astype(str)
-            hourly_comparison. loc[mask_balanced, 'DC Difference (Balanced MPPTs) (%)'] = diff_series. loc[mask_balanced]
+            diff_series.loc[valid_rows.index[valid_rows]] = diff_pct.loc[valid_rows.index[valid_rows]].astype(str)
+            hourly_comparison.loc[mask_balanced, 'DC Difference (Balanced MPPTs) (%)'] = diff_series.loc[mask_balanced]
         
-        hourly_comparison['date'] = hourly_comparison.index. date
+        hourly_comparison['date'] = hourly_comparison.index.date
         
         hourly_comparison['Daily Averaged Soiling Losses (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
         
@@ -860,10 +860,10 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                 
                 numeric_diffs = pd.to_numeric(valid_diffs, errors='coerce')
                 
-                if not numeric_diffs. empty and not numeric_diffs.isna().all():
+                if not numeric_diffs.empty and not numeric_diffs.isna().all():
                     avg_diff = numeric_diffs.mean()
                     
-                    last_ts = group.index. max()
+                    last_ts = group.index.max()
                     
                     hourly_comparison.loc[last_ts, 'Daily Averaged Soiling Losses (%)'] = round(avg_diff, 2)
             except Exception:
@@ -909,7 +909,7 @@ def export_to_excel(
         df_hourly = pd.DataFrame(hourly_averages or [])
 
         if actual_minute_df is not None and not actual_minute_df.empty:
-            if isinstance(actual_minute_df. index, pd.DatetimeIndex) and actual_minute_df.index. tz is not None:
+            if isinstance(actual_minute_df.index, pd.DatetimeIndex) and actual_minute_df.index.tz is not None:
                 actual_minute_df = actual_minute_df.copy()
                 actual_minute_df.index = actual_minute_df.index.tz_localize(None)
 
@@ -921,16 +921,16 @@ def export_to_excel(
         with pd.ExcelWriter(filename, engine="openpyxl") as writer:
             if not df_detailed.empty:
                 df_detailed.to_excel(writer, sheet_name="Theoretical Detailed", index=False)
-            if not df_hourly. empty:
+            if not df_hourly.empty:
                 df_hourly.to_excel(writer, sheet_name="Theoretical Hourly", index=False)
 
             if actual_minute_df is not None and not actual_minute_df.empty:
                 actual_minute_df.to_excel(writer, sheet_name="Actual Minute by Minute")
             if actual_hourly_df is not None and not actual_hourly_df.empty:
-                actual_hourly_df. to_excel(writer, sheet_name="Actual Hourly")
+                actual_hourly_df.to_excel(writer, sheet_name="Actual Hourly")
 
             if hourly_comparison_df is not None and not hourly_comparison_df.empty:
-                hourly_comparison_df. to_excel(writer, sheet_name="Hourly Comparison")
+                hourly_comparison_df.to_excel(writer, sheet_name="Hourly Comparison")
 
         return True
 
@@ -1019,7 +1019,7 @@ def main():
         print("Could not determine date range from weather data")
         return
     
-    output_filename = f"solar_analysis_{start_date. date()}_to_{end_date.date()}.xlsx"
+    output_filename = f"solar_analysis_{start_date.date()}_to_{end_date.date()}.xlsx"
     
     # Step 9: Convert theoretical results to DataFrames
     theoretical_detailed_df, theoretical_hourly_df = convert_theoretical_to_dataframe(all_results, hourly_averages)
@@ -1053,8 +1053,8 @@ def main():
             print("\n=== DAILY AVERAGED SOILING LOSSES ===")
 
             col_name = "Daily Averaged Soiling Losses (%)"
-            if col_name in hourly_comparison_df. columns:
-                daily_losses = hourly_comparison_df[hourly_comparison_df[col_name]. notna()]
+            if col_name in hourly_comparison_df.columns:
+                daily_losses = hourly_comparison_df[hourly_comparison_df[col_name].notna()]
 
                 if not daily_losses.empty:
                     print(f"{'Date':<12} {col_name}")
