@@ -82,7 +82,7 @@ jobs:
         with: 
           name: soiling-analysis-results
           path: |
-            *. xlsx
+            *.xlsx
             *.png
           retention-days: 30
       
