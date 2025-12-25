@@ -483,7 +483,7 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
         'poa_global': poa_global.iloc[0],
         'solar_zenith': solar_position['apparent_zenith'].iloc[0],
         'solar_azimuth': solar_position['azimuth'].iloc[0],
-        'aoi':  aoi_value,
+        'aoi': aoi_value,
         'iam_value': iam_value,
         'iam_loss': iam_loss.iloc[0] if isinstance(iam_loss, pd.Series) else iam_loss,
         'beam_after_iam': beam_after_iam.iloc[0],
@@ -847,7 +847,8 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                         theo_balanced_numeric[valid_rows] * 100).round(2)
             
             diff_series = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
-            diff_series.loc[valid_rows.index[valid_rows]] = diff_pct.loc[valid_rows.index[valid_rows]].astype(str)
+            valid_indices = valid_rows.index[valid_rows]
+            diff_series.loc[valid_indices] = diff_pct.loc[valid_indices].astype(str)
             hourly_comparison.loc[mask_balanced, 'DC Difference (Balanced MPPTs) (%)'] = diff_series.loc[mask_balanced]
         
         hourly_comparison['date'] = hourly_comparison.index.date
