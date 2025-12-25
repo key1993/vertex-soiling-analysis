@@ -53,7 +53,7 @@ else:
 SENSOR_DEFINITIONS = {
     'MPPT1 Voltage': "sensor.mppt1_voltage",
     'MPPT2 Voltage': "sensor.mppt2_voltage",
-    'MPPT1 Current': "sensor. mppt1_current",
+    'MPPT1 Current': "sensor.mppt1_current",
     'MPPT2 Current':  "sensor.mppt2_current",
     'AC Output': "sensor.total_ac_power",
     'DC Output': "sensor.total_dc_power"
@@ -61,12 +61,12 @@ SENSOR_DEFINITIONS = {
 
 HA_CONFIG_SENSORS = {
     'LATITUDE': "input_text.solar_system_latitude",
-    'LONGITUDE': "input_text. solar_system_longitude",
+    'LONGITUDE': "input_text.solar_system_longitude",
     'TILT': "input_text.solar_panel_tilt",
     'AZIMUTH': "input_text.solar_panel_azimuth",
     'PANEL_PEAK_POWER': "input_text.solar_panel_info",
-    'NUMBER_OF_PANELS': "input_text. solar_panel_count",
-    'INVERTER_CAPACITY_KW': "input_text. solar_inverter_info"
+    'NUMBER_OF_PANELS': "input_text.solar_panel_count",
+    'INVERTER_CAPACITY_KW': "input_text.solar_inverter_info"
 }
 
 # ===== NEW:  SUNNY DAY DETECTION =====
@@ -163,7 +163,7 @@ def is_sunny_day(solar_forecast_data, threshold=0.75, min_sunny_hours=6):
     print("\n=== SUNNY DAY ANALYSIS RESULTS ===")
     print(f"Total Daylight Hours: {total_daylight_hours}")
     print(f"Sunny Hours (>={threshold*100}% clear): {sunny_hour_count}")
-    print(f"Sunshine Percentage: {sunshine_percentage:. 1f}%")
+    print(f"Sunshine Percentage: {sunshine_percentage:.1f}%")
     print(f"Average Cloud Ratio:  {avg_cloud_ratio:.3f}")
     print(f"Day Classification: {'☀️ SUNNY' if is_suitable else '☁️ CLOUDY'}")
     print(f"Suitable for Soiling Analysis: {is_suitable}")
