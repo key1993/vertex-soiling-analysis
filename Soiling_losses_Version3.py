@@ -960,7 +960,7 @@ def main():
     print("\n=== PHASE 2: SUNNY DAY DETECTION ===")
     sunny_analysis = is_sunny_day(
         solar_data,
-        threshold=0.75,        # Adjust:  0.75 = need 75% of clear sky irradiance
+        threshold=0.9,        # Adjust:  0.75 = need 75% of clear sky irradiance
         min_sunny_hours=6      # Adjust: need at least 6 sunny hours
     )
     
