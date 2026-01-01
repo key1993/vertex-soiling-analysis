@@ -5,7 +5,7 @@ from datetime import datetime
 
 # Get parameters from command line
 HA_URL = sys.argv[1]
-HA_TOKEN = sys. argv[2]
+HA_TOKEN = sys.argv[2]
 FORECAST_DATE = sys.argv[3]
 
 # Validate and clean HA_URL
