@@ -8,6 +8,26 @@ HA_URL = sys.argv[1]
 HA_TOKEN = sys. argv[2]
 FORECAST_DATE = sys.argv[3]
 
+# Validate and clean HA_URL
+# URL must include scheme (http:// or https://)
+# Example valid URLs:
+#   - http://homeassistant.local:8123
+#   - https://your-ha-instance.duckdns.org
+if not HA_URL.startswith(('http://', 'https://')):
+    print("❌ ERROR: Invalid Home Assistant URL format!")
+    print(f"   Provided: {HA_URL}")
+    print()
+    print("The URL must include the scheme (http:// or https://)")
+    print()
+    print("Valid URL examples:")
+    print("  - http://homeassistant.local:8123")
+    print("  - https://your-ha-instance.duckdns.org")
+    print("  - http://192.168.1.100:8123")
+    sys.exit(1)
+
+# Strip trailing slashes to avoid double-slash issues
+HA_URL = HA_URL.rstrip('/')
+
 # Get latitude/longitude from HA
 def get_coordinates_from_ha():
     headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
