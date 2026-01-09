@@ -904,6 +904,8 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         # Note: This assumes equal weight for current and voltage - may need tuning based on real-world data
         shading_factor = (hourly_comparison['MPPT Current Difference (%)'].fillna(0) + 
                          hourly_comparison['MPPT Voltage Difference (%)'].fillna(0)) / 2
+        # Clamp shading factor to prevent negative power values
+        shading_factor = shading_factor.clip(upper=100)
         hourly_comparison['Shaded MPPT Output (kW)'] = hourly_comparison['Theoretical DC / 2 (kW)'] * (1 - shading_factor / 100)
         
         # Calculate after-shade theoretical DC (sum of both MPPTs)
@@ -1037,10 +1039,15 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                     median = valid_soiling.median()
                     std = valid_soiling.std()
                     
-                    filtered_soiling = valid_soiling[
-                        (valid_soiling >= median - 2 * std) & 
-                        (valid_soiling <= median + 2 * std)
-                    ]
+                    # Handle case where std is 0 or NaN (all values identical or single value)
+                    if pd.notna(std) and std > 0:
+                        filtered_soiling = valid_soiling[
+                            (valid_soiling >= median - 2 * std) & 
+                            (valid_soiling <= median + 2 * std)
+                        ]
+                    else:
+                        # If std is 0 or NaN, use all values (they're all the same or just one value)
+                        filtered_soiling = valid_soiling
                     
                     if not filtered_soiling.empty:
                         # Weight by confidence: HIGH=3, MEDIUM=2, LOW=1
@@ -1048,7 +1055,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                             'HIGH': 3,
                             'MEDIUM': 2,
                             'LOW': 1
-                        })
+                        }).fillna(1)  # Default to LOW confidence if mapping fails
                         
                         weighted_avg = (filtered_soiling * weights).sum() / weights.sum()
                         
@@ -1063,10 +1070,15 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                     median = valid_shading.median()
                     std = valid_shading.std()
                     
-                    filtered_shading = valid_shading[
-                        (valid_shading >= median - 2 * std) & 
-                        (valid_shading <= median + 2 * std)
-                    ]
+                    # Handle case where std is 0 or NaN (all values identical or single value)
+                    if pd.notna(std) and std > 0:
+                        filtered_shading = valid_shading[
+                            (valid_shading >= median - 2 * std) & 
+                            (valid_shading <= median + 2 * std)
+                        ]
+                    else:
+                        # If std is 0 or NaN, use all values (they're all the same or just one value)
+                        filtered_shading = valid_shading
                     
                     if not filtered_shading.empty:
                         avg_shading = filtered_shading.mean()
