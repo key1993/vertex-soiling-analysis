@@ -42,6 +42,25 @@ ALTITUDE = 770  # Default altitude, will be updated by get_altitude()
 MIN_DAILY_DATA_POINTS = 3  # Minimum data points required for daily averaging
 MISSING_MPPT_DIFF_PENALTY = 100  # Assume poor quality if MPPT difference is missing
 
+# Quality filter thresholds
+QUALITY_MIN_OUTPUT_RATIO = 0.2  # Minimum output as ratio of max (20%)
+QUALITY_MAX_MPPT_DIFF = 30  # Maximum MPPT difference percentage for quality inclusion
+QUALITY_MIN_MPPT_CURRENT = 0.1  # Minimum current in amps for each MPPT
+QUALITY_MAX_CLIPPING_RATIO = 0.95  # Maximum ratio to max power before considered clipping
+
+# Confidence scoring thresholds
+CONF_HIGH_HOUR_START = 10  # Start hour for high confidence (10am)
+CONF_HIGH_HOUR_END = 14  # End hour for high confidence (2pm)
+CONF_HIGH_MAX_MPPT_DIFF = 10  # Maximum MPPT difference for high confidence
+CONF_HIGH_MIN_OUTPUT_RATIO = 0.4  # Minimum output ratio for high confidence
+CONF_MEDIUM_MAX_MPPT_DIFF = 20  # Maximum MPPT difference for medium confidence
+CONF_MEDIUM_MIN_OUTPUT_RATIO = 0.2  # Minimum output ratio for medium confidence
+
+# Confidence weights for daily averaging
+CONF_WEIGHT_HIGH = 3
+CONF_WEIGHT_MEDIUM = 2
+CONF_WEIGHT_LOW = 1
+
 # Weather cache configuration
 EARTH_RADIUS_KM = 6371  # Earth's radius in kilometers
 CACHE_DISTANCE_THRESHOLD_KM = 30  # Maximum distance (km) to use cached weather data
@@ -923,12 +942,12 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         # Missing MPPT difference is treated as poor quality (set to MISSING_MPPT_DIFF_PENALTY)
         # Missing actual power cannot be compared, so skip these rows entirely
         quality_mask = (
-            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.2) &  # Above 20% of max
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 30) &  # MPPT difference not too high
-            (hourly_comparison['MPPT1 Current'].fillna(0) > 0.1) &  # Both MPPTs producing
-            (hourly_comparison['MPPT2 Current'].fillna(0) > 0.1) &
-            (hourly_comparison['Actual DC Power (kW)'].notna()) &  # Must have actual power data
-            (hourly_comparison['Actual DC Power (kW)'] < MAX_TOTAL_DC_POWER * 0.95)  # Not clipping
+            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * QUALITY_MIN_OUTPUT_RATIO) &
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < QUALITY_MAX_MPPT_DIFF) &
+            (hourly_comparison['MPPT1 Current'].fillna(0) > QUALITY_MIN_MPPT_CURRENT) &
+            (hourly_comparison['MPPT2 Current'].fillna(0) > QUALITY_MIN_MPPT_CURRENT) &
+            (hourly_comparison['Actual DC Power (kW)'].notna()) &
+            (hourly_comparison['Actual DC Power (kW)'] < MAX_TOTAL_DC_POWER * QUALITY_MAX_CLIPPING_RATIO)
         )
         
         hourly_comparison.loc[quality_mask, 'Quality Filter'] = 'INCLUDE'
@@ -938,17 +957,18 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         
         # HIGH confidence: mid-day, balanced MPPTs, good output
         high_conf_mask = (
-            (hourly_comparison.index.hour >= 10) & (hourly_comparison.index.hour <= 14) &
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 10) &
-            (hourly_comparison['MPPT Voltage Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 10) &
-            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.4) &
+            (hourly_comparison.index.hour >= CONF_HIGH_HOUR_START) & 
+            (hourly_comparison.index.hour <= CONF_HIGH_HOUR_END) &
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_HIGH_MAX_MPPT_DIFF) &
+            (hourly_comparison['MPPT Voltage Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_HIGH_MAX_MPPT_DIFF) &
+            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * CONF_HIGH_MIN_OUTPUT_RATIO) &
             (hourly_comparison['Quality Filter'] == 'INCLUDE')
         )
         
         # MEDIUM confidence
         medium_conf_mask = (
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 20) &
-            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.2) &
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_MEDIUM_MAX_MPPT_DIFF) &
+            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * CONF_MEDIUM_MIN_OUTPUT_RATIO) &
             (hourly_comparison['Quality Filter'] == 'INCLUDE') &
             ~high_conf_mask
         )
@@ -1052,10 +1072,10 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                     if not filtered_soiling.empty:
                         # Weight by confidence: HIGH=3, MEDIUM=2, LOW=1
                         weights = group.loc[filtered_soiling.index, 'Confidence'].map({
-                            'HIGH': 3,
-                            'MEDIUM': 2,
-                            'LOW': 1
-                        }).fillna(1)  # Default to LOW confidence if mapping fails
+                            'HIGH': CONF_WEIGHT_HIGH,
+                            'MEDIUM': CONF_WEIGHT_MEDIUM,
+                            'LOW': CONF_WEIGHT_LOW
+                        }).fillna(CONF_WEIGHT_LOW)  # Default to LOW confidence if mapping fails
                         
                         weighted_avg = (filtered_soiling * weights).sum() / weights.sum()
                         
