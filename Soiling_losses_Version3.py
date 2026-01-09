@@ -1059,6 +1059,41 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                 print(f"[WARNING] Error calculating daily average for {date}: {e}")
                 pass
     
+    # Reorder columns for better Excel output
+    # Define the desired column order
+    desired_order = [
+        'Theoretical DC Output (kW)',
+        'Theoretical DC / 2 (kW)',
+        'Shaded MPPT Output (kW)',
+        'After Shade Theoretical DC (kW)',
+        'Actual DC Power (kW)',
+        'Shading Loss (%)',
+        'Soiling Loss (%)',
+        'Quality Filter',
+        'Confidence',
+        'MPPT1 Voltage',
+        'MPPT2 Voltage',
+        'MPPT1 Current',
+        'MPPT2 Current',
+        'MPPT Voltage Difference (%)',
+        'MPPT Current Difference (%)',
+        'DC Output Difference (kW)',
+        'DC Output Difference (%)',
+        'Theoretical DC Output Limited (kW)',
+        'Actual DC Power Limited (kW)',
+        'Theoretical DC (Balanced MPPTs)',
+        'Actual DC (Balanced MPPTs)',
+        'DC Difference (Balanced MPPTs) (%)',
+        'Daily Averaged Shading Loss (%)',
+        'Daily Averaged Soiling Loss (%)',
+        'date'
+    ]
+    
+    # Reorder columns - only include columns that exist
+    existing_cols = [col for col in desired_order if col in hourly_comparison.columns]
+    other_cols = [col for col in hourly_comparison.columns if col not in desired_order]
+    hourly_comparison = hourly_comparison[existing_cols + other_cols]
+    
     return hourly_comparison
 
 def update_daily_soiling_loss_to_ha(loss_value, date_str):
