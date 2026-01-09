@@ -38,6 +38,10 @@ INVERTER_CAPACITY_KW = 0
 
 ALTITUDE = 770  # Default altitude, will be updated by get_altitude()
 
+# Quality filter and confidence scoring parameters
+MIN_DAILY_DATA_POINTS = 3  # Minimum data points required for daily averaging
+MISSING_MPPT_DIFF_PENALTY = 100  # Assume poor quality if MPPT difference is missing
+
 # Weather cache configuration
 EARTH_RADIUS_KM = 6371  # Earth's radius in kilometers
 CACHE_DISTANCE_THRESHOLD_KM = 30  # Maximum distance (km) to use cached weather data
@@ -896,7 +900,8 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         # Add new shading-aware columns
         hourly_comparison['Theoretical DC / 2 (kW)'] = hourly_comparison['Theoretical DC Output (kW)'] / 2
         
-        # Calculate shaded MPPT output
+        # Calculate shaded MPPT output using average of current and voltage differences
+        # Note: This assumes equal weight for current and voltage - may need tuning based on real-world data
         shading_factor = (hourly_comparison['MPPT Current Difference (%)'].fillna(0) + 
                          hourly_comparison['MPPT Voltage Difference (%)'].fillna(0)) / 2
         hourly_comparison['Shaded MPPT Output (kW)'] = hourly_comparison['Theoretical DC / 2 (kW)'] * (1 - shading_factor / 100)
@@ -913,12 +918,15 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         # Add Quality Filter column
         hourly_comparison['Quality Filter'] = 'EXCLUDE'
         
+        # Missing MPPT difference is treated as poor quality (set to MISSING_MPPT_DIFF_PENALTY)
+        # Missing actual power cannot be compared, so skip these rows entirely
         quality_mask = (
             (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.2) &  # Above 20% of max
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(100) < 30) &  # MPPT difference not too high
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 30) &  # MPPT difference not too high
             (hourly_comparison['MPPT1 Current'].fillna(0) > 0.1) &  # Both MPPTs producing
             (hourly_comparison['MPPT2 Current'].fillna(0) > 0.1) &
-            (hourly_comparison['Actual DC Power (kW)'].fillna(MAX_TOTAL_DC_POWER) < MAX_TOTAL_DC_POWER * 0.95)  # Not clipping
+            (hourly_comparison['Actual DC Power (kW)'].notna()) &  # Must have actual power data
+            (hourly_comparison['Actual DC Power (kW)'] < MAX_TOTAL_DC_POWER * 0.95)  # Not clipping
         )
         
         hourly_comparison.loc[quality_mask, 'Quality Filter'] = 'INCLUDE'
@@ -929,15 +937,15 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         # HIGH confidence: mid-day, balanced MPPTs, good output
         high_conf_mask = (
             (hourly_comparison.index.hour >= 10) & (hourly_comparison.index.hour <= 14) &
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(100) < 10) &
-            (hourly_comparison['MPPT Voltage Difference (%)'].fillna(100) < 10) &
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 10) &
+            (hourly_comparison['MPPT Voltage Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 10) &
             (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.4) &
             (hourly_comparison['Quality Filter'] == 'INCLUDE')
         )
         
         # MEDIUM confidence
         medium_conf_mask = (
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(100) < 20) &
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < 20) &
             (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.2) &
             (hourly_comparison['Quality Filter'] == 'INCLUDE') &
             ~high_conf_mask
@@ -1024,7 +1032,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                     (group['Soiling Loss (%)'].notna())
                 ]['Soiling Loss (%)']
                 
-                if not valid_soiling.empty and len(valid_soiling) >= 3:
+                if not valid_soiling.empty and len(valid_soiling) >= MIN_DAILY_DATA_POINTS:
                     # Outlier detection: remove values > 2 std devs from median
                     median = valid_soiling.median()
                     std = valid_soiling.std()
@@ -1048,12 +1056,22 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                         last_ts = group.index.max()
                         hourly_comparison.loc[last_ts, 'Daily Averaged Soiling Loss (%)'] = round(weighted_avg, 2)
                 
-                # Calculate daily shading loss similarly
+                # Calculate daily shading loss with outlier detection (consistent with soiling loss)
                 valid_shading = group[group['Shading Loss (%)'].notna()]['Shading Loss (%)']
-                if not valid_shading.empty:
-                    avg_shading = valid_shading.mean()
-                    last_ts = group.index.max()
-                    hourly_comparison.loc[last_ts, 'Daily Averaged Shading Loss (%)'] = round(avg_shading, 2)
+                if not valid_shading.empty and len(valid_shading) >= MIN_DAILY_DATA_POINTS:
+                    # Apply same outlier detection as soiling loss
+                    median = valid_shading.median()
+                    std = valid_shading.std()
+                    
+                    filtered_shading = valid_shading[
+                        (valid_shading >= median - 2 * std) & 
+                        (valid_shading <= median + 2 * std)
+                    ]
+                    
+                    if not filtered_shading.empty:
+                        avg_shading = filtered_shading.mean()
+                        last_ts = group.index.max()
+                        hourly_comparison.loc[last_ts, 'Daily Averaged Shading Loss (%)'] = round(avg_shading, 2)
                     
             except Exception as e:
                 print(f"[WARNING] Error calculating daily average for {date}: {e}")
