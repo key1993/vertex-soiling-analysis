@@ -30,6 +30,7 @@ AZIMUTH = 0
 ALBEDO = 0.2
 PANEL_PEAK_POWER = 0
 NUMBER_OF_PANELS = 0
+MAX_TOTAL_DC_POWER = 0
 TEMP_COEFFICIENT = -0.0035
 IAM_ANGLES = [0.0, 25.0, 45.0, 60.0, 65.0, 70.0, 75.0, 80.0, 90.0]
 IAM_VALUES = [1.000, 1.000, 0.995, 0.962, 0.936, 0.903, 0.851, 0.754, 0.000]
@@ -71,7 +72,8 @@ HA_CONFIG_SENSORS = {
     'AZIMUTH': "input_text.solar_panel_azimuth",
     'PANEL_PEAK_POWER': "input_text.solar_panel_info",
     'NUMBER_OF_PANELS': "input_text.solar_panel_count",
-    'INVERTER_CAPACITY_KW': "input_text.solar_inverter_info"
+    'INVERTER_CAPACITY_KW': "input_text.solar_inverter_info",
+    'MAX_TOTAL_DC_POWER': "input_number.max_total_dc_power"
 }
 
 # ===== NEW:  SUNNY DAY DETECTION =====
@@ -224,7 +226,7 @@ def update_sunny_day_status_to_ha(is_sunny, sunshine_percentage, sunny_hours, to
 
 def fetch_configuration_from_ha():
     """Fetch configuration values from Home Assistant sensors"""
-    global LATITUDE, LONGITUDE, TILT, AZIMUTH, PANEL_PEAK_POWER, NUMBER_OF_PANELS, INVERTER_CAPACITY_KW
+    global LATITUDE, LONGITUDE, TILT, AZIMUTH, PANEL_PEAK_POWER, NUMBER_OF_PANELS, INVERTER_CAPACITY_KW, MAX_TOTAL_DC_POWER
     
     print("\n=== Fetching Configuration from Home Assistant ===")
     
@@ -243,7 +245,7 @@ def fetch_configuration_from_ha():
                 value = sensor_data.get('state')
                 
                 if value not in ('unknown', 'unavailable'):
-                    if config_name in ('LATITUDE', 'LONGITUDE', 'TILT', 'AZIMUTH', 'INVERTER_CAPACITY_KW'):
+                    if config_name in ('LATITUDE', 'LONGITUDE', 'TILT', 'AZIMUTH', 'INVERTER_CAPACITY_KW', 'MAX_TOTAL_DC_POWER'):
                         value = float(value)
                     elif config_name in ('PANEL_PEAK_POWER', 'NUMBER_OF_PANELS'):
                         value = int(value)
@@ -268,6 +270,7 @@ def fetch_configuration_from_ha():
     print(f"PANEL_PEAK_POWER: {PANEL_PEAK_POWER}")
     print(f"NUMBER_OF_PANELS: {NUMBER_OF_PANELS}")
     print(f"INVERTER_CAPACITY_KW: {INVERTER_CAPACITY_KW}")
+    print(f"MAX_TOTAL_DC_POWER: {MAX_TOTAL_DC_POWER}")
     print("=======================================\n")
 
 def get_altitude(lat, lon):
@@ -890,6 +893,90 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
               hourly_comparison.loc[mask_valid_mppt_c, 'MPPT2 Current']) / 2) * 100
         ).round(2)
         
+        # Add new shading-aware columns
+        hourly_comparison['Theoretical DC / 2 (kW)'] = hourly_comparison['Theoretical DC Output (kW)'] / 2
+        
+        # Calculate shaded MPPT output
+        shading_factor = (hourly_comparison['MPPT Current Difference (%)'].fillna(0) + 
+                         hourly_comparison['MPPT Voltage Difference (%)'].fillna(0)) / 2
+        hourly_comparison['Shaded MPPT Output (kW)'] = hourly_comparison['Theoretical DC / 2 (kW)'] * (1 - shading_factor / 100)
+        
+        # Calculate after-shade theoretical DC (sum of both MPPTs)
+        hourly_comparison['After Shade Theoretical DC (kW)'] = (
+            hourly_comparison['Theoretical DC / 2 (kW)'] + 
+            hourly_comparison['Shaded MPPT Output (kW)']
+        )
+        
+        # Cap the after-shade theoretical at the max limit from HA
+        hourly_comparison['After Shade Theoretical DC (kW)'] = hourly_comparison['After Shade Theoretical DC (kW)'].clip(upper=MAX_TOTAL_DC_POWER)
+        
+        # Add Quality Filter column
+        hourly_comparison['Quality Filter'] = 'EXCLUDE'
+        
+        quality_mask = (
+            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.2) &  # Above 20% of max
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(100) < 30) &  # MPPT difference not too high
+            (hourly_comparison['MPPT1 Current'].fillna(0) > 0.1) &  # Both MPPTs producing
+            (hourly_comparison['MPPT2 Current'].fillna(0) > 0.1) &
+            (hourly_comparison['Actual DC Power (kW)'].fillna(MAX_TOTAL_DC_POWER) < MAX_TOTAL_DC_POWER * 0.95)  # Not clipping
+        )
+        
+        hourly_comparison.loc[quality_mask, 'Quality Filter'] = 'INCLUDE'
+        
+        # Add Confidence Score column
+        hourly_comparison['Confidence'] = 'LOW'
+        
+        # HIGH confidence: mid-day, balanced MPPTs, good output
+        high_conf_mask = (
+            (hourly_comparison.index.hour >= 10) & (hourly_comparison.index.hour <= 14) &
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(100) < 10) &
+            (hourly_comparison['MPPT Voltage Difference (%)'].fillna(100) < 10) &
+            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.4) &
+            (hourly_comparison['Quality Filter'] == 'INCLUDE')
+        )
+        
+        # MEDIUM confidence
+        medium_conf_mask = (
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(100) < 20) &
+            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * 0.2) &
+            (hourly_comparison['Quality Filter'] == 'INCLUDE') &
+            ~high_conf_mask
+        )
+        
+        hourly_comparison.loc[high_conf_mask, 'Confidence'] = 'HIGH'
+        hourly_comparison.loc[medium_conf_mask, 'Confidence'] = 'MEDIUM'
+        
+        # Calculate Shading Loss %
+        hourly_comparison['Shading Loss (%)'] = pd.Series(dtype='float64')
+        
+        mask_valid_shading = (
+            hourly_comparison['Theoretical DC Output (kW)'].notna() &
+            (hourly_comparison['Theoretical DC Output (kW)'] > 0) &
+            hourly_comparison['After Shade Theoretical DC (kW)'].notna()
+        )
+        
+        hourly_comparison.loc[mask_valid_shading, 'Shading Loss (%)'] = (
+            (hourly_comparison.loc[mask_valid_shading, 'Theoretical DC Output (kW)'] - 
+             hourly_comparison.loc[mask_valid_shading, 'After Shade Theoretical DC (kW)']) / 
+            hourly_comparison.loc[mask_valid_shading, 'Theoretical DC Output (kW)'] * 100
+        ).round(2)
+        
+        # Calculate Soiling Loss %
+        hourly_comparison['Soiling Loss (%)'] = pd.Series(dtype='float64')
+        
+        mask_valid_soiling = (
+            hourly_comparison['After Shade Theoretical DC (kW)'].notna() &
+            (hourly_comparison['After Shade Theoretical DC (kW)'] > 0) &
+            hourly_comparison['Actual DC Power (kW)'].notna() &
+            (hourly_comparison['Quality Filter'] == 'INCLUDE')
+        )
+        
+        hourly_comparison.loc[mask_valid_soiling, 'Soiling Loss (%)'] = (
+            (hourly_comparison.loc[mask_valid_soiling, 'After Shade Theoretical DC (kW)'] - 
+             hourly_comparison.loc[mask_valid_soiling, 'Actual DC Power (kW)']) / 
+            hourly_comparison.loc[mask_valid_soiling, 'After Shade Theoretical DC (kW)'] * 100
+        ).round(2)
+        
         hourly_comparison['Theoretical DC (Balanced MPPTs)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
         hourly_comparison['Actual DC (Balanced MPPTs)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
         hourly_comparison['DC Difference (Balanced MPPTs) (%)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
@@ -925,21 +1012,51 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         
         hourly_comparison['date'] = hourly_comparison.index.date
         
-        hourly_comparison['Daily Averaged Soiling Losses (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
+        # Calculate daily averaged metrics with outlier detection
+        hourly_comparison['Daily Averaged Shading Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
+        hourly_comparison['Daily Averaged Soiling Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
         
         for date, group in hourly_comparison.groupby('date'):
             try:
-                valid_diffs = group[group['DC Difference (Balanced MPPTs) (%)'] != 'N/A']['DC Difference (Balanced MPPTs) (%)']
+                # Get valid soiling losses (only INCLUDE quality filter)
+                valid_soiling = group[
+                    (group['Quality Filter'] == 'INCLUDE') & 
+                    (group['Soiling Loss (%)'].notna())
+                ]['Soiling Loss (%)']
                 
-                numeric_diffs = pd.to_numeric(valid_diffs, errors='coerce')
-                
-                if not numeric_diffs.empty and not numeric_diffs.isna().all():
-                    avg_diff = numeric_diffs.mean()
+                if not valid_soiling.empty and len(valid_soiling) >= 3:
+                    # Outlier detection: remove values > 2 std devs from median
+                    median = valid_soiling.median()
+                    std = valid_soiling.std()
                     
+                    filtered_soiling = valid_soiling[
+                        (valid_soiling >= median - 2 * std) & 
+                        (valid_soiling <= median + 2 * std)
+                    ]
+                    
+                    if not filtered_soiling.empty:
+                        # Weight by confidence: HIGH=3, MEDIUM=2, LOW=1
+                        weights = group.loc[filtered_soiling.index, 'Confidence'].map({
+                            'HIGH': 3,
+                            'MEDIUM': 2,
+                            'LOW': 1
+                        })
+                        
+                        weighted_avg = (filtered_soiling * weights).sum() / weights.sum()
+                        
+                        # Store at last timestamp of the day
+                        last_ts = group.index.max()
+                        hourly_comparison.loc[last_ts, 'Daily Averaged Soiling Loss (%)'] = round(weighted_avg, 2)
+                
+                # Calculate daily shading loss similarly
+                valid_shading = group[group['Shading Loss (%)'].notna()]['Shading Loss (%)']
+                if not valid_shading.empty:
+                    avg_shading = valid_shading.mean()
                     last_ts = group.index.max()
+                    hourly_comparison.loc[last_ts, 'Daily Averaged Shading Loss (%)'] = round(avg_shading, 2)
                     
-                    hourly_comparison.loc[last_ts, 'Daily Averaged Soiling Losses (%)'] = round(avg_diff, 2)
-            except Exception:
+            except Exception as e:
+                print(f"[WARNING] Error calculating daily average for {date}: {e}")
                 pass
     
     return hourly_comparison
@@ -1126,34 +1243,44 @@ def main():
         else:
             print(f"[INFO] Comparison DataFrame has {len(hourly_comparison_df)} rows.")
 
-            # Display Daily Averaged Soiling Losses
-            print("\n=== DAILY AVERAGED SOILING LOSSES ===")
+            # Display Daily Averaged Losses
+            print("\n=== DAILY AVERAGED LOSSES ===")
 
-            col_name = "Daily Averaged Soiling Losses (%)"
-            if col_name in hourly_comparison_df.columns:
-                daily_losses = hourly_comparison_df[hourly_comparison_df[col_name].notna()]
-
-                if not daily_losses.empty:
-                    print(f"{'Date':<12} {col_name}")
+            # Print Shading Losses
+            shading_col = "Daily Averaged Shading Loss (%)"
+            if shading_col in hourly_comparison_df.columns:
+                daily_shading = hourly_comparison_df[hourly_comparison_df[shading_col].notna()]
+                if not daily_shading.empty:
+                    print(f"\n{'Date':<12} {shading_col}")
                     print("=============================================")
-
-                    for idx, row in daily_losses.iterrows():
+                    for idx, row in daily_shading.iterrows():
                         date_str = idx.strftime("%Y-%m-%d")
-                        loss_value = row[col_name]
+                        loss_value = row[shading_col]
                         print(f"{date_str:<12} {loss_value}")
 
-                    # Push last day's value to HA
-                    last_idx, last_row = list(daily_losses.tail(1).iterrows())[0]
+            # Print Soiling Losses
+            soiling_col = "Daily Averaged Soiling Loss (%)"
+            if soiling_col in hourly_comparison_df.columns:
+                daily_soiling = hourly_comparison_df[hourly_comparison_df[soiling_col].notna()]
+                if not daily_soiling.empty:
+                    print(f"\n{'Date':<12} {soiling_col}")
+                    print("=============================================")
+                    for idx, row in daily_soiling.iterrows():
+                        date_str = idx.strftime("%Y-%m-%d")
+                        loss_value = row[soiling_col]
+                        print(f"{date_str:<12} {loss_value}")
+                    
+                    # Update HA with soiling loss (not shading)
+                    last_idx, last_row = list(daily_soiling.tail(1).iterrows())[0]
                     last_date_str = last_idx.strftime("%Y-%m-%d")
-                    last_loss_value = last_row[col_name]
-
+                    last_loss_value = last_row[soiling_col]
                     update_daily_soiling_loss_to_ha(last_loss_value, last_date_str)
 
                 else:
                     print("[INFO] No daily averaged soiling losses found.")
 
             else:
-                print(f"[INFO] Column '{col_name}' not found in hourly_comparison_df.")
+                print(f"[INFO] Column '{soiling_col}' not found in hourly_comparison_df.")
 
     except Exception as e:
         print(f"Error creating comparison: {e}")
