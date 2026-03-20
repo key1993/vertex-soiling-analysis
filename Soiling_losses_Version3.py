@@ -80,12 +80,14 @@ else:
     print("[WARNING] Using default hardcoded values.")
 
 SENSOR_DEFINITIONS = {
-    'MPPT1 Voltage': "sensor.mppt1_voltage",
-    'MPPT2 Voltage': "sensor.mppt2_voltage",
-    'MPPT1 Current': "sensor.mppt1_current",
-    'MPPT2 Current': "sensor.mppt2_current",
-    'AC Output': "sensor.total_ac_power",
-    'DC Output': "sensor.total_dc_power"
+    # Home Assistant sensor entity IDs
+    # (keep the friendly names/column names stable by only changing the entity_id strings)
+    'MPPT1 Voltage': "sensor.sg_mppt1_voltage",
+    'MPPT2 Voltage': "sensor.sg_mppt2_voltage",
+    'MPPT1 Current': "sensor.sg_mppt1_current",
+    'MPPT2 Current': "sensor.sg_mppt2_current",
+    'AC Output': "sensor.sg_total_ac_power",
+    'DC Output': "sensor.sg_total_dc_power"
 }
 
 HA_CONFIG_SENSORS = {
@@ -756,18 +758,62 @@ def get_ha_config():
         return None
 
 def get_sensors_data(entity_ids, start_time, end_time):
+    """
+    Fetch Home Assistant history for multiple entities.
+    Primary path: GET /api/states/<entity_id>/history (per entity).
+    Fallback: the older /api/history/period/<start>?filter_entity_id=<entity_id>.
+    """
     start_iso = start_time.isoformat()
     end_iso = end_time.isoformat()
-    encoded_start_iso = quote(start_iso)
-    api_url = f"{HOME_ASSISTANT_URL}/api/history/period/{encoded_start_iso}"
-    params = {"filter_entity_id": ",".join(entity_ids), "end_time": end_iso}
+
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "content-type": "application/json"}
-    try:
-        response = requests.get(api_url, headers=headers, params=params)
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return None
+
+    all_histories = []
+    for entity_id in entity_ids:
+        # Per-entity history call.
+        api_url = f"{HOME_ASSISTANT_URL}/api/states/{entity_id}/history"
+        params = {"start_time": start_iso, "end_time": end_iso}
+
+        try:
+            response = requests.get(api_url, headers=headers, params=params)
+            response.raise_for_status()
+
+            data = response.json()
+            # Depending on HA version/customization, the payload can be shaped differently.
+            if isinstance(data, dict):
+                history = data.get("history") or data.get("states") or data.get("data") or []
+            else:
+                history = data
+
+            if not isinstance(history, list):
+                history = []
+
+            # Ensure downstream code can always resolve entity_id.
+            for rec in history:
+                if isinstance(rec, dict) and "entity_id" not in rec:
+                    rec["entity_id"] = entity_id
+
+            all_histories.append(history)
+        except requests.exceptions.RequestException as e:
+            # Fallback to the previous working endpoint for robustness.
+            try:
+                encoded_start_iso = quote(start_iso)
+                fallback_url = f"{HOME_ASSISTANT_URL}/api/history/period/{encoded_start_iso}"
+                fallback_params = {"filter_entity_id": entity_id, "end_time": end_iso}
+                fallback_resp = requests.get(fallback_url, headers=headers, params=fallback_params)
+                fallback_resp.raise_for_status()
+                history = fallback_resp.json()
+                if not isinstance(history, list):
+                    history = []
+                for rec in history:
+                    if isinstance(rec, dict) and "entity_id" not in rec:
+                        rec["entity_id"] = entity_id
+                all_histories.append(history)
+            except Exception:
+                print(f"[WARNING] Failed to fetch HA history for {entity_id}: {e}")
+                all_histories.append([])
+
+    return all_histories
 
 def fetch_home_assistant_data_range(start_date, end_date):
     ha_config = get_ha_config()
@@ -787,12 +833,38 @@ def fetch_home_assistant_data_range(start_date, end_date):
 
     entity_id_to_friendly_name = {v:  k for k, v in SENSOR_DEFINITIONS.items()}
     all_series = {}
-    for entity_history in all_sensor_data: 
+    for idx, entity_history in enumerate(all_sensor_data):
         if not entity_history:  continue
-        entity_id = entity_history[0]['entity_id']
+        entity_id = entity_history[0].get("entity_id") if isinstance(entity_history[0], dict) else None
+        if not entity_id:
+            # If the per-entity history endpoint doesn't include entity_id per record,
+            # we can reliably use the entity_id from our request order.
+            entity_id = entity_ids_to_fetch[idx]
         friendly_name = entity_id_to_friendly_name.get(entity_id, entity_id)
-        timestamps = [datetime.fromisoformat(state['last_changed']) for state in entity_history]
-        values = [state['state'] for state in entity_history]
+
+        timestamps = []
+        values = []
+        for state in entity_history:
+            if not isinstance(state, dict):
+                continue
+
+            # Depending on Home Assistant version/customization, history entries may look like:
+            # - {"last_changed": "...", "state": "..."}
+            # - {"timestamp": "...", "value": 1.23}
+            ts_str = (
+                state.get("last_changed")
+                or state.get("last_reported")
+                or state.get("timestamp")
+            )
+            if not ts_str:
+                continue
+
+            value = state.get("state")
+            if value is None:
+                value = state.get("value")
+            timestamps.append(datetime.fromisoformat(ts_str))
+            values.append(value)
+
         series = pd.Series(values, index=timestamps, name=friendly_name)
         series = pd.to_numeric(series, errors='coerce')
         all_series[friendly_name] = series
