@@ -1,0 +1,135 @@
+{
+    "date": "2026-04-03",
+    "city": "Irbid",
+    "coordinates": {
+        "lat": 32.5514,
+        "lon": 35.8515
+    },
+    "solar_forecast": {
+        "cod": 401,
+        "message": "Invalid API key. Please see https://openweathermap.org/faq#error401 for more info."
+    },
+    "ambient_weather": [
+        {
+            "hour": 0,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 1,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 2,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 3,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 4,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 5,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 6,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 7,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 8,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 9,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 10,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 11,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 12,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 13,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 14,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 15,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 16,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 17,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 18,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 19,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 20,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 21,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 22,
+            "temp": null,
+            "wind_speed": null
+        },
+        {
+            "hour": 23,
+            "temp": null,
+            "wind_speed": null
+        }
+    ],
+    "harvested_at": "2026-04-03T17:13:30.394166"
+}
