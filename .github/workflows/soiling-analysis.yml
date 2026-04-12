@@ -1,0 +1,111 @@
+# .github/workflows/soiling-analysis.yml
+name: Solar Soiling Analysis
+
+on:
+  repository_dispatch:
+    types: 
+      - run_soiling_analysis      # Keep old one for compatibility
+      - check_sunny_only          # Add new one
+      - run_full_analysis         # Add new one
+  workflow_dispatch: 
+    inputs:
+      ha_url:  
+        description: 'Home Assistant URL'
+        required: true
+      ha_token: 
+        description: 'Home Assistant Token'
+        required: true
+      forecast_date:
+        description: 'Forecast Date (YYYY-MM-DD)'
+        required: true
+        default: '2025-12-25'
+
+jobs:
+  # Job 1: Check if sunny
+  check-sunny-day:
+    if: github.event.action == 'check_sunny_only' || github.event.action == 'run_soiling_analysis'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with: 
+          python-version: '3.10'
+      
+      - name: Install dependencies (minimal)
+        run: |
+          pip install requests
+      
+      - name: Check if day is sunny
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: |
+          python check_sunny_day.py \
+            "${{ github.event.client_payload.ha_url || github.event.inputs.ha_url }}" \
+            "${{ github.event.client_payload.ha_token || github.event.inputs.ha_token }}" \
+            "${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}"
+
+  # Job 2: Run full analysis
+  run-soiling-analysis:
+    if: github.event.action == 'run_full_analysis' || github.event.action == 'run_soiling_analysis'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with: 
+          python-version: '3.10'
+      
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+      
+      - name: Run soiling analysis
+        env:
+          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+        run: |
+          python Soiling_losses_Version3.py \
+            "${{ github.event.client_payload.ha_url || github.event.inputs.ha_url }}" \
+            "${{ github.event.client_payload.ha_token || github.event.inputs.ha_token }}" \
+            "${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}"
+      
+      - name: Upload results
+        uses: actions/upload-artifact@v4
+        with:  
+          name: soiling-analysis-results
+          path: |
+            reports/*.xlsx
+            reports/*.png
+            *.xlsx
+            *.png
+          retention-days: 30
+      
+      - name: Notify Home Assistant (Success)
+        if: success()
+        run: |
+          curl -X POST "${{ github.event.client_payload.ha_url || github.event.inputs.ha_url }}/api/services/persistent_notification/create" \
+            -H "Authorization: Bearer ${{ github.event.client_payload.ha_token || github.event.inputs.ha_token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "title": "✅ Soiling Analysis Complete",
+              "message": "Analysis completed successfully for ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}. Check artifacts for results.",
+              "notification_id": "soiling_analysis_result"
+            }'
+      
+      - name: Notify Home Assistant (Failure)
+        if: failure()
+        run: |
+          curl -X POST "${{ github.event.client_payload.ha_url || github.event.inputs.ha_url }}/api/services/persistent_notification/create" \
+            -H "Authorization: Bearer ${{ github.event.client_payload.ha_token || github.event.inputs.ha_token }}" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "title": "❌ Soiling Analysis Failed",
+              "message": "Analysis failed for ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}. Check workflow logs.",
+              "notification_id": "soiling_analysis_result"
+            }'
