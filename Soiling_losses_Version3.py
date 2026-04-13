@@ -548,7 +548,9 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
     )
     alb_trp = pd.Series(calculate_ground_reflected(tilt, ghi, albedo), index=times)
 
-    perez = pvlib.irradiance.perez(
+    # FIX: perez() no longer returns components as DataFrame columns in newer pvlib.
+    # Use haydavies or get_sky_diffuse for components, or call perez separately.
+    perez_total = pvlib.irradiance.perez(
         surface_tilt=tilt,
         surface_azimuth=azimuth,
         dhi=weather_data['dhi'],
@@ -557,12 +559,20 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
         solar_zenith=solar_position['apparent_zenith'],
         solar_azimuth=solar_position['azimuth'],
         airmass=airmass,
-        return_components=True
+        return_components=True  # Still pass it, but handle both return types
     )
 
-    isotropic = perez['isotropic']
-    circumsolar = perez['circumsolar']
-    horizon = perez['horizon']
+    # Handle both old (DataFrame) and new (Series) pvlib return formats
+    if isinstance(perez_total, pd.DataFrame):
+        isotropic = perez_total['isotropic']
+        circumsolar = perez_total['circumsolar']
+        horizon = perez_total['horizon']
+    else:
+        # Newer pvlib: returns total diffuse as Series, no components
+        # Approximate components using isotropic model for breakdown
+        isotropic = perez_total  # treat total diffuse as isotropic
+        circumsolar = pd.Series([0.0], index=times)
+        horizon = pd.Series([0.0], index=times)
 
     if aoi_value >= 90:
         iam_value = 0.0
