@@ -548,9 +548,7 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
     )
     alb_trp = pd.Series(calculate_ground_reflected(tilt, ghi, albedo), index=times)
 
-    # FIX: perez() no longer returns components as DataFrame columns in newer pvlib.
-    # Use haydavies or get_sky_diffuse for components, or call perez separately.
-    perez_total = pvlib.irradiance.perez(
+    perez = pvlib.irradiance.perez(
         surface_tilt=tilt,
         surface_azimuth=azimuth,
         dhi=weather_data['dhi'],
@@ -559,20 +557,18 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
         solar_zenith=solar_position['apparent_zenith'],
         solar_azimuth=solar_position['azimuth'],
         airmass=airmass,
-        return_components=True  # Still pass it, but handle both return types
+        return_components=True
     )
 
-    # Handle both old (DataFrame) and new (Series) pvlib return formats
-    if isinstance(perez_total, pd.DataFrame):
-        isotropic = perez_total['isotropic']
-        circumsolar = perez_total['circumsolar']
-        horizon = perez_total['horizon']
+    # pvlib >= 0.10 renamed the diffuse components; support both old and new naming
+    if 'poa_isotropic' in perez.columns:
+        isotropic   = perez['poa_isotropic']
+        circumsolar = perez['poa_circumsolar']
+        horizon     = perez['poa_horizon']
     else:
-        # Newer pvlib: returns total diffuse as Series, no components
-        # Approximate components using isotropic model for breakdown
-        isotropic = perez_total  # treat total diffuse as isotropic
-        circumsolar = pd.Series([0.0], index=times)
-        horizon = pd.Series([0.0], index=times)
+        isotropic   = perez['isotropic']
+        circumsolar = perez['circumsolar']
+        horizon     = perez['horizon']
 
     if aoi_value >= 90:
         iam_value = 0.0
