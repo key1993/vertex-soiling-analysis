@@ -8,6 +8,12 @@ from datetime import datetime
 HA_URL = sys.argv[1]
 HA_TOKEN = sys.argv[2]
 FORECAST_DATE = sys.argv[3]
+ACCOUNT_ID = sys.argv[4] if len(sys.argv) >= 5 else ""
+
+def _api(path):
+    """Build a full Ebsher API URL scoped to the current account."""
+    sep = '&' if '?' in path else '?'
+    return f"{HA_URL}{path}{sep}account_id={ACCOUNT_ID}"
 
 OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
 if not OPENWEATHER_API_KEY:
@@ -25,8 +31,8 @@ HA_URL = HA_URL.rstrip('/')
 def get_coordinates_from_ha():
     headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
     
-    lat_url = f"{HA_URL}/api/states/input_text.solar_system_latitude"
-    lon_url = f"{HA_URL}/api/states/input_text.solar_system_longitude"
+    lat_url = _api("/api/states/input_text.solar_system_latitude")
+    lon_url = _api("/api/states/input_text.solar_system_longitude")
     
     try:
         lat = float(requests.get(lat_url, headers=headers).json().get('state', 0))
@@ -100,11 +106,11 @@ def update_ha_sensors(result, date_str):
     headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
     
     # Update boolean (On/Off)
-    boolean_url = f"{HA_URL}/api/services/input_boolean/turn_{'on' if result['is_sunny'] else 'off'}"
+    boolean_url = _api(f"/api/services/input_boolean/turn_{'on' if result['is_sunny'] else 'off'}")
     requests.post(boolean_url, headers=headers, json={"entity_id": "input_boolean.sunny_day_detected"})
-    
+
     # Update text info
-    text_url = f"{HA_URL}/api/services/input_text/set_value"
+    text_url = _api("/api/services/input_text/set_value")
     status_label = "SUNNY" if result['is_sunny'] else "CLOUDY"
     info_text = (
         f"{status_label}: {result['sunshine_percentage']}% total sunlight potential "
