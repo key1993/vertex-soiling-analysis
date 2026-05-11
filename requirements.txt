@@ -1,0 +1,10 @@
+requests
+json5           # safe fallback for JSON (optional but harmless)
+pandas
+numpy
+matplotlib
+pvlib
+scipy
+pytz
+astral
+openpyxl
