@@ -68,6 +68,12 @@ CONF_WEIGHT_LOW = 1
 EARTH_RADIUS_KM = 6371  # Earth's radius in kilometers
 CACHE_DISTANCE_THRESHOLD_KM = 30  # Maximum distance (km) to use cached weather data
 
+# Shoulder window thresholds for oversized DC/AC systems
+# Valid comparison zone: theoretical DC between these ratios of inverter AC capacity
+# Below lower = too noisy; above upper = inverter clipping contaminates the signal
+SHOULDER_LOWER_RATIO = 0.15
+SHOULDER_UPPER_RATIO = 0.75
+
 # Home Assistant configuration
 HOME_ASSISTANT_URL = "http://default-ha-url"
 ACCESS_TOKEN = "default-token"
@@ -1012,96 +1018,137 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
               hourly_comparison.loc[mask_valid_mppt_c, 'MPPT2 Current']) / 2) * 100
         ).round(2)
         
-        # Add new shading-aware columns
-        hourly_comparison['Theoretical DC / 2 (kW)'] = hourly_comparison['Theoretical DC Output (kW)'] / 2
-        
-        # Calculate shaded MPPT output using average of current and voltage differences
-        # Note: This assumes equal weight for current and voltage - may need tuning based on real-world data
-        shading_factor = (hourly_comparison['MPPT Current Difference (%)'].fillna(0) + 
-                         hourly_comparison['MPPT Voltage Difference (%)'].fillna(0)) / 2
-        # Clamp shading factor to prevent negative power values
-        shading_factor = shading_factor.clip(upper=100)
-        hourly_comparison['Shaded MPPT Output (kW)'] = hourly_comparison['Theoretical DC / 2 (kW)'] * (1 - shading_factor / 100)
-        
-        # Calculate after-shade theoretical DC (sum of both MPPTs)
-        hourly_comparison['After Shade Theoretical DC (kW)'] = (
-            hourly_comparison['Theoretical DC / 2 (kW)'] + 
-            hourly_comparison['Shaded MPPT Output (kW)']
+        # Per-MPPT actual power from V×I sensors (more accurate than total/2)
+        mask_mppt_power = (
+            hourly_comparison['MPPT1 Voltage'].notna() &
+            hourly_comparison['MPPT1 Current'].notna() &
+            hourly_comparison['MPPT2 Voltage'].notna() &
+            hourly_comparison['MPPT2 Current'].notna() &
+            (hourly_comparison['MPPT1 Current'] > QUALITY_MIN_MPPT_CURRENT) &
+            (hourly_comparison['MPPT2 Current'] > QUALITY_MIN_MPPT_CURRENT)
         )
+        hourly_comparison['MPPT1 Power (kW)'] = pd.Series(dtype='float64')
+        hourly_comparison['MPPT2 Power (kW)'] = pd.Series(dtype='float64')
+        hourly_comparison.loc[mask_mppt_power, 'MPPT1 Power (kW)'] = (
+            hourly_comparison.loc[mask_mppt_power, 'MPPT1 Voltage'] *
+            hourly_comparison.loc[mask_mppt_power, 'MPPT1 Current'] / 1000
+        ).round(3)
+        hourly_comparison.loc[mask_mppt_power, 'MPPT2 Power (kW)'] = (
+            hourly_comparison.loc[mask_mppt_power, 'MPPT2 Voltage'] *
+            hourly_comparison.loc[mask_mppt_power, 'MPPT2 Current'] / 1000
+        ).round(3)
+
+        # Shoulder window: valid comparison zone for oversized DC/AC systems.
+        # Excludes hours where theoretical DC approaches inverter clipping threshold,
+        # which would make actual vs theoretical comparison meaningless.
+        shoulder_lower = inverter_capacity_kw * SHOULDER_LOWER_RATIO
+        shoulder_upper = inverter_capacity_kw * SHOULDER_UPPER_RATIO
+        hourly_comparison['Shoulder Window'] = (
+            (hourly_comparison['Theoretical DC Output (kW)'] >= shoulder_lower) &
+            (hourly_comparison['Theoretical DC Output (kW)'] < shoulder_upper)
+        )
+
+        # Differential / common-mode loss decomposition using per-MPPT V×I power:
+        #   Soiling is spatially uniform → both MPPTs lose equally → common-mode signal
+        #   Shading is spatially localized → one MPPT loses more → differential signal
+        P_theo_each = hourly_comparison['Theoretical DC Output (kW)'] / 2
+
+        mask_decomp = (
+            mask_mppt_power &
+            (P_theo_each > 0) &
+            hourly_comparison['MPPT1 Power (kW)'].notna() &
+            hourly_comparison['MPPT2 Power (kW)'].notna()
+        )
+
+        loss1_pct = pd.Series(np.nan, index=hourly_comparison.index)
+        loss2_pct = pd.Series(np.nan, index=hourly_comparison.index)
+        loss1_pct[mask_decomp] = (
+            (P_theo_each[mask_decomp] - hourly_comparison.loc[mask_decomp, 'MPPT1 Power (kW)']) /
+            P_theo_each[mask_decomp] * 100
+        ).clip(lower=0)
+        loss2_pct[mask_decomp] = (
+            (P_theo_each[mask_decomp] - hourly_comparison.loc[mask_decomp, 'MPPT2 Power (kW)']) /
+            P_theo_each[mask_decomp] * 100
+        ).clip(lower=0)
+
+        # Common-mode: minimum loss shared by both MPPTs → soiling candidate
+        common_mode_pct = pd.Series(np.nan, index=hourly_comparison.index)
+        common_mode_pct[mask_decomp] = np.minimum(
+            loss1_pct[mask_decomp], loss2_pct[mask_decomp]
+        )
+
+        # Differential: extra loss on the worse MPPT → shading candidate
+        differential_pct = pd.Series(np.nan, index=hourly_comparison.index)
+        differential_pct[mask_decomp] = (loss1_pct[mask_decomp] - loss2_pct[mask_decomp]).abs()
         
-        # Cap the after-shade theoretical at the max limit from HA
-        hourly_comparison['After Shade Theoretical DC (kW)'] = hourly_comparison['After Shade Theoretical DC (kW)'].clip(upper=MAX_TOTAL_DC_POWER)
-        
-        # Add Quality Filter column
+        # Quality filter: shoulder window is the gate for oversized DC/AC systems.
+        # The old clipping check against MAX_TOTAL_DC_POWER was incorrect — for an
+        # oversized array the DC peak exceeds inverter capacity, so actual output
+        # is hard-capped by the inverter long before reaching 95% of DC array max.
+        # Shoulder window already excludes those clipping hours via the theoretical
+        # DC ceiling, so no separate clipping check on actual is needed.
         hourly_comparison['Quality Filter'] = 'EXCLUDE'
-        
-        # Missing MPPT difference is treated as poor quality (set to MISSING_MPPT_DIFF_PENALTY)
-        # Missing actual power cannot be compared, so skip these rows entirely
+
         quality_mask = (
-            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * QUALITY_MIN_OUTPUT_RATIO) &
+            hourly_comparison['Shoulder Window'] &
             (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < QUALITY_MAX_MPPT_DIFF) &
             (hourly_comparison['MPPT1 Current'].fillna(0) > QUALITY_MIN_MPPT_CURRENT) &
             (hourly_comparison['MPPT2 Current'].fillna(0) > QUALITY_MIN_MPPT_CURRENT) &
             (hourly_comparison['Actual DC Power (kW)'].notna()) &
-            (hourly_comparison['Actual DC Power (kW)'] < MAX_TOTAL_DC_POWER * QUALITY_MAX_CLIPPING_RATIO)
+            hourly_comparison['MPPT1 Power (kW)'].notna() &
+            hourly_comparison['MPPT2 Power (kW)'].notna()
         )
-        
+
         hourly_comparison.loc[quality_mask, 'Quality Filter'] = 'INCLUDE'
         
-        # Add Confidence Score column
+        # Confidence scoring — shoulder-window aware.
+        # The old fixed midday band (10am-2pm) coincides with the clipping zone on
+        # oversized systems, so we drop the hour condition and score within the
+        # shoulder window based on MPPT balance and irradiance level instead.
         hourly_comparison['Confidence'] = 'LOW'
-        
-        # HIGH confidence: mid-day, balanced MPPTs, good output
+
+        # HIGH: balanced MPPTs, good irradiance, inside shoulder window
         high_conf_mask = (
-            (hourly_comparison.index.hour >= CONF_HIGH_HOUR_START) & 
-            (hourly_comparison.index.hour <= CONF_HIGH_HOUR_END) &
+            (hourly_comparison['Quality Filter'] == 'INCLUDE') &
+            hourly_comparison['Shoulder Window'] &
             (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_HIGH_MAX_MPPT_DIFF) &
             (hourly_comparison['MPPT Voltage Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_HIGH_MAX_MPPT_DIFF) &
-            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * CONF_HIGH_MIN_OUTPUT_RATIO) &
-            (hourly_comparison['Quality Filter'] == 'INCLUDE')
+            (hourly_comparison['Theoretical DC Output (kW)'] > inverter_capacity_kw * CONF_HIGH_MIN_OUTPUT_RATIO)
         )
-        
-        # MEDIUM confidence
+
+        # MEDIUM: moderate MPPT balance, inside shoulder window
         medium_conf_mask = (
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_MEDIUM_MAX_MPPT_DIFF) &
-            (hourly_comparison['Theoretical DC Output (kW)'] > MAX_TOTAL_DC_POWER * CONF_MEDIUM_MIN_OUTPUT_RATIO) &
             (hourly_comparison['Quality Filter'] == 'INCLUDE') &
+            hourly_comparison['Shoulder Window'] &
+            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_MEDIUM_MAX_MPPT_DIFF) &
+            (hourly_comparison['Theoretical DC Output (kW)'] > inverter_capacity_kw * CONF_MEDIUM_MIN_OUTPUT_RATIO) &
             ~high_conf_mask
         )
         
         hourly_comparison.loc[high_conf_mask, 'Confidence'] = 'HIGH'
         hourly_comparison.loc[medium_conf_mask, 'Confidence'] = 'MEDIUM'
         
-        # Calculate Shading Loss %
+        # Shading Loss: differential component (extra loss on the worse MPPT).
+        # Divided by 2 because shading hits only one of two equal strings, so the
+        # differential represents twice the per-string shading loss as % of total.
         hourly_comparison['Shading Loss (%)'] = pd.Series(dtype='float64')
-        
-        mask_valid_shading = (
-            hourly_comparison['Theoretical DC Output (kW)'].notna() &
-            (hourly_comparison['Theoretical DC Output (kW)'] > 0) &
-            hourly_comparison['After Shade Theoretical DC (kW)'].notna()
-        )
-        
+        mask_valid_shading = mask_decomp & hourly_comparison['Shoulder Window']
         hourly_comparison.loc[mask_valid_shading, 'Shading Loss (%)'] = (
-            (hourly_comparison.loc[mask_valid_shading, 'Theoretical DC Output (kW)'] - 
-             hourly_comparison.loc[mask_valid_shading, 'After Shade Theoretical DC (kW)']) / 
-            hourly_comparison.loc[mask_valid_shading, 'Theoretical DC Output (kW)'] * 100
-        ).round(2)
-        
-        # Calculate Soiling Loss %
+            differential_pct[mask_valid_shading] / 2
+        ).clip(upper=50).round(2)
+
+        # Soiling Loss: common-mode component (both MPPTs equally underperform theoretical).
+        # Computed only inside the shoulder window to avoid contamination from
+        # inverter clipping in peak hours on oversized DC/AC systems.
         hourly_comparison['Soiling Loss (%)'] = pd.Series(dtype='float64')
-        
         mask_valid_soiling = (
-            hourly_comparison['After Shade Theoretical DC (kW)'].notna() &
-            (hourly_comparison['After Shade Theoretical DC (kW)'] > 0) &
-            hourly_comparison['Actual DC Power (kW)'].notna() &
+            mask_decomp &
+            hourly_comparison['Shoulder Window'] &
             (hourly_comparison['Quality Filter'] == 'INCLUDE')
         )
-        
         hourly_comparison.loc[mask_valid_soiling, 'Soiling Loss (%)'] = (
-            (hourly_comparison.loc[mask_valid_soiling, 'After Shade Theoretical DC (kW)'] - 
-             hourly_comparison.loc[mask_valid_soiling, 'Actual DC Power (kW)']) / 
-            hourly_comparison.loc[mask_valid_soiling, 'After Shade Theoretical DC (kW)'] * 100
-        ).round(2)
+            common_mode_pct[mask_valid_soiling]
+        ).clip(upper=50).round(2)
         
         hourly_comparison['Theoretical DC (Balanced MPPTs)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
         hourly_comparison['Actual DC (Balanced MPPTs)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
@@ -1209,10 +1256,10 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
     # Define the desired column order
     desired_order = [
         'Theoretical DC Output (kW)',
-        'Theoretical DC / 2 (kW)',
-        'Shaded MPPT Output (kW)',
-        'After Shade Theoretical DC (kW)',
         'Actual DC Power (kW)',
+        'MPPT1 Power (kW)',
+        'MPPT2 Power (kW)',
+        'Shoulder Window',
         'Shading Loss (%)',
         'Soiling Loss (%)',
         'Quality Filter',
