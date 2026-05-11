@@ -72,13 +72,28 @@ CACHE_DISTANCE_THRESHOLD_KM = 30  # Maximum distance (km) to use cached weather 
 HOME_ASSISTANT_URL = "http://default-ha-url"
 ACCESS_TOKEN = "default-token"
 FORECAST_DATE = datetime.now().strftime("%Y-%m-%d")
+ACCOUNT_ID = ""
 
-if len(sys.argv) >= 4:
+def _api(path):
+    """Build a full Ebsher API URL scoped to the current account."""
+    sep = '&' if '?' in path else '?'
+    return f"{HOME_ASSISTANT_URL}{path}{sep}account_id={ACCOUNT_ID}"
+
+if len(sys.argv) >= 5:
+    HOME_ASSISTANT_URL = sys.argv[1]
+    ACCESS_TOKEN = sys.argv[2]
+    FORECAST_DATE = sys.argv[3]
+    ACCOUNT_ID = sys.argv[4]
+    print(f"[INFO] Using HA URL: {HOME_ASSISTANT_URL}")
+    print(f"[INFO] Using forecast date: {FORECAST_DATE}")
+    print(f"[INFO] Using account ID: {ACCOUNT_ID}")
+elif len(sys.argv) >= 4:
     HOME_ASSISTANT_URL = sys.argv[1]
     ACCESS_TOKEN = sys.argv[2]
     FORECAST_DATE = sys.argv[3]
     print(f"[INFO] Using HA URL: {HOME_ASSISTANT_URL}")
     print(f"[INFO] Using forecast date: {FORECAST_DATE}")
+    print("[WARNING] No account_id provided — requests will not be account-scoped.")
 else:
     print("[WARNING] Using default hardcoded values.")
 
@@ -216,7 +231,7 @@ def update_sunny_day_status_to_ha(is_sunny, sunshine_percentage, sunny_hours, to
     
     # Update boolean sensor (for automation triggers)
     boolean_entity = "input_boolean.sunny_day_detected"
-    boolean_url = f"{HOME_ASSISTANT_URL}/api/services/input_boolean/turn_{'on' if is_sunny else 'off'}"
+    boolean_url = _api(f"/api/services/input_boolean/turn_{'on' if is_sunny else 'off'}")
     
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
@@ -236,8 +251,8 @@ def update_sunny_day_status_to_ha(is_sunny, sunshine_percentage, sunny_hours, to
     
     # Update text sensor with detailed info
     text_entity = "input_text.sunny_day_info"
-    text_url = f"{HOME_ASSISTANT_URL}/api/services/input_text/set_value"
-    
+    text_url = _api("/api/services/input_text/set_value")
+
     text_payload = {
         "entity_id": text_entity,
         "value": f"{sunshine_percentage:.1f}% sunny ({sunny_hours}/{total_hours}h) on {date_str}"
@@ -265,7 +280,7 @@ def fetch_configuration_from_ha():
     
     for config_name, sensor_entity_id in HA_CONFIG_SENSORS.items():
         try:
-            url = f"{HOME_ASSISTANT_URL}/api/states/{sensor_entity_id}"
+            url = _api(f"/api/states/{sensor_entity_id}")
             response = requests.get(url, headers=headers)
             
             if response.status_code == 200:
@@ -757,7 +772,7 @@ def convert_theoretical_to_dataframe(all_results, hourly_averages):
     return detailed_df, hourly_df
 
 def get_ha_config():
-    api_url = f"{HOME_ASSISTANT_URL}/api/config"
+    api_url = _api("/api/config")
     headers = {"Authorization": f"Bearer {ACCESS_TOKEN}", "content-type": "application/json"}
     try:
         response = requests.get(api_url, headers=headers)
@@ -780,7 +795,7 @@ def get_sensors_data(entity_ids, start_time, end_time):
     all_histories = []
     for entity_id in entity_ids:
         # Per-entity history call.
-        api_url = f"{HOME_ASSISTANT_URL}/api/states/{entity_id}/history"
+        api_url = _api(f"/api/states/{entity_id}/history")
         params = {"start_time": start_iso, "end_time": end_iso}
 
         try:
@@ -807,7 +822,7 @@ def get_sensors_data(entity_ids, start_time, end_time):
             # Fallback to the previous working endpoint for robustness.
             try:
                 encoded_start_iso = quote(start_iso)
-                fallback_url = f"{HOME_ASSISTANT_URL}/api/history/period/{encoded_start_iso}"
+                fallback_url = _api(f"/api/history/period/{encoded_start_iso}")
                 fallback_params = {"filter_entity_id": entity_id, "end_time": end_iso}
                 fallback_resp = requests.get(fallback_url, headers=headers, params=fallback_params)
                 fallback_resp.raise_for_status()
@@ -1227,10 +1242,30 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
     
     return hourly_comparison
 
+def fetch_user_name_from_ha():
+    """Fetch input_text.user_name from Ebsher to use as the Excel output folder."""
+    headers = {
+        "Authorization": f"Bearer {ACCESS_TOKEN}",
+        "Content-Type": "application/json",
+    }
+    try:
+        url = _api("/api/states/input_text.user_name")
+        resp = requests.get(url, headers=headers, timeout=10)
+        resp.raise_for_status()
+        name = resp.json().get("state", "").strip()
+        if name and name not in ("unknown", "unavailable", ""):
+            safe_name = re.sub(r'[^\w\-_. ]', '_', name).strip()
+            print(f"[OKEY] Output folder set to: '{safe_name}'")
+            return safe_name
+    except Exception as e:
+        print(f"[WARNING] Could not fetch user_name from HA: {e}")
+    print("[INFO] Using default output folder: reports")
+    return "reports"
+
 def update_daily_soiling_loss_to_ha(loss_value, date_str):
-    """Update Home Assistant input_text. daily_soiling_loss"""
+    """Update Home Assistant input_text.daily_soiling_loss"""
     entity_id = "input_text.daily_soiling_loss"
-    url = f"{HOME_ASSISTANT_URL}/api/services/input_text/set_value"
+    url = _api("/api/services/input_text/set_value")
     headers = {
         "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json",
@@ -1345,14 +1380,17 @@ def main():
             'reason': f"Only {sunny_analysis['sunny_hours']} sunny hours out of {sunny_analysis['total_daylight_hours']} daylight hours (need 6+)"
         }
         
-        # Export minimal report
+        # Export minimal report into the user's named folder
+        user_folder = fetch_user_name_from_ha()
+        import os as _os
+        _os.makedirs(user_folder, exist_ok=True)
         pd.DataFrame([simple_report]).to_excel(
-            f"skipped_analysis_{FORECAST_DATE}.xlsx",
+            f"{user_folder}/skipped_analysis_{FORECAST_DATE}.xlsx",
             sheet_name="Skipped - Cloudy Day",
             index=False
         )
-        
-        print(f"[OKEY] Minimal report saved:  skipped_analysis_{FORECAST_DATE}.xlsx")
+
+        print(f"[OKEY] Minimal report saved:  {user_folder}/skipped_analysis_{FORECAST_DATE}.xlsx")
         return  # Exit without full analysis
     
     # ✅ Day is sunny - proceed with full analysis
@@ -1375,11 +1413,12 @@ def main():
         print("Could not determine date range from weather data")
         return
     
-    # Create reports directory if it doesn't exist
+    # Create output directory named after the account's user_name
     import os
-    os.makedirs('reports', exist_ok=True)
+    user_folder = fetch_user_name_from_ha()
+    os.makedirs(user_folder, exist_ok=True)
 
-    output_filename = f"reports/solar_analysis_{start_date.date()}_to_{end_date.date()}.xlsx"
+    output_filename = f"{user_folder}/solar_analysis_{start_date.date()}_to_{end_date.date()}.xlsx"
     
     # Step 9: Convert theoretical results to DataFrames
     theoretical_detailed_df, theoretical_hourly_df = convert_theoretical_to_dataframe(all_results, hourly_averages)
