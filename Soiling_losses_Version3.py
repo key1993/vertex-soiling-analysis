@@ -55,6 +55,10 @@ CACHE_DISTANCE_THRESHOLD_KM = 30  # Maximum distance (km) to use cached weather 
 SHOULDER_LOWER_RATIO = 0.15
 SHOULDER_UPPER_RATIO = 0.75
 
+# Hours where MPPT current imbalance exceeds this threshold are shading-contaminated
+# and excluded from the daily soiling energy sums (both theoretical and actual).
+SHADING_EXCLUSION_MPPT_DIFF = 5.0
+
 # Home Assistant configuration
 HOME_ASSISTANT_URL = "http://default-ha-url"
 ACCESS_TOKEN = "default-token"
@@ -965,6 +969,13 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
             hourly_comparison.loc[mask_balanced, 'DC Difference (Balanced MPPTs) (%)'] = diff_series.loc[mask_balanced]
         
         hourly_comparison['date'] = hourly_comparison.index.date
+
+        # Mark hours excluded from the soiling calculation due to MPPT current imbalance > 5%.
+        hourly_comparison['Shading Excluded'] = (
+            hourly_comparison['MPPT Current Difference (%)'].notna() &
+            (hourly_comparison['MPPT Current Difference (%)'] > SHADING_EXCLUSION_MPPT_DIFF)
+        )
+
         hourly_comparison['Daily Soiling Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
         hourly_comparison['Daily Averaged Shading Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
 
@@ -973,11 +984,17 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                 last_ts = group.index.max()
 
                 # Soiling: daily energy summation — capped theoretical vs actual.
-                # Only hours with valid actual readings are included in both sums
-                # so sensor gaps do not inflate the loss artificially.
+                # Hours where MPPT current imbalance > 5% are shading-contaminated
+                # and excluded from both sums. Hours with missing MPPT data are
+                # included (cannot determine shading status).
+                mppt_diff_ok = (
+                    group['MPPT Current Difference (%)'].isna() |
+                    (group['MPPT Current Difference (%)'] <= SHADING_EXCLUSION_MPPT_DIFF)
+                )
                 valid_hours = (
                     group['Actual DC Power (kW)'].notna() &
-                    (group['Actual DC Power (kW)'] >= 0)
+                    (group['Actual DC Power (kW)'] >= 0) &
+                    mppt_diff_ok
                 )
                 if valid_hours.any():
                     theo_energy = group.loc[valid_hours, 'Theoretical DC Capped (kW)'].sum()
@@ -1013,6 +1030,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         'MPPT1 Power (kW)',
         'MPPT2 Power (kW)',
         'Shoulder Window',
+        'Shading Excluded',
         'Shading Loss (%)',
         'MPPT1 Voltage',
         'MPPT2 Voltage',
