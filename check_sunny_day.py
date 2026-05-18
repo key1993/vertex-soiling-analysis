@@ -15,10 +15,7 @@ def _api(path):
     sep = '&' if '?' in path else '?'
     return f"{HA_URL}{path}{sep}account_id={ACCOUNT_ID}"
 
-OPENWEATHER_API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
-if not OPENWEATHER_API_KEY:
-    print("❌ ERROR: OPENWEATHER_API_KEY environment variable is not set.")
-    sys.exit(1)
+CACHE_DIR = "weather_cache"
 
 # 1. Validate and clean HA_URL
 if not HA_URL.startswith(('http://', 'https://')):
@@ -27,37 +24,23 @@ if not HA_URL.startswith(('http://', 'https://')):
 
 HA_URL = HA_URL.rstrip('/')
 
-# 2. Get latitude/longitude from HA
-def get_coordinates_from_ha():
-    headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
-    
-    lat_url = _api("/api/states/input_text.solar_system_latitude")
-    lon_url = _api("/api/states/input_text.solar_system_longitude")
-    
-    try:
-        lat = float(requests.get(lat_url, headers=headers).json().get('state', 0))
-        lon = float(requests.get(lon_url, headers=headers).json().get('state', 0))
-        return lat, lon
-    except Exception as e:
-        print(f"❌ ERROR: Failed to fetch coordinates from HA: {e}")
+# 2. Load solar data from the cached JSON file produced by city_harvester.py
+def load_solar_from_cache(date):
+    cache_file = os.path.join(CACHE_DIR, f"{date}.json")
+    if not os.path.exists(cache_file):
+        print(f"❌ ERROR: Cache file not found: {cache_file}")
+        print(f"   Run city_harvester.py first to collect data for {date}.")
         sys.exit(1)
-
-# 3. Fetch solar forecast
-def fetch_solar_forecast(lat, lon, date, api_key=None):
-    if api_key is None:
-        api_key = OPENWEATHER_API_KEY
-    url = (
-        f"https://api.openweathermap.org/energy/2.0/solar/interval_data"
-        f"?lat={lat}&lon={lon}&date={date}&interval=1h&appid={api_key}"
-    )
-    response = requests.get(url)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        print(f"❌ ERROR: Solar API request failed: {response.status_code}")
+    with open(cache_file, 'r') as f:
+        cached = json.load(f)
+    solar = cached.get("solar_forecast")
+    if not solar:
+        print(f"❌ ERROR: No 'solar_forecast' key found in {cache_file}")
         sys.exit(1)
+    print(f"[OK] Loaded solar data from cache: {cache_file}")
+    return solar
 
-# 4. Determine if day is sunny (Based on Total Daily Energy)
+# 3. Determine if day is sunny (Based on Total Daily Energy)
 def calculate_daily_sunniness(solar_data, threshold=0.9):
     """
     Calculates the ratio of total actual energy vs total potential energy.
@@ -126,14 +109,10 @@ def update_ha_sensors(result, date_str):
 
 # Main execution
 if __name__ == "__main__":
-    print(f"🌤️ Analyzing {FORECAST_DATE} based on Total Daily Energy (Threshold: 90%)...")
-    
-    lat, lon = get_coordinates_from_ha()
-    print(f"📍 Location: {lat}, {lon}")
-    
-    solar_data = fetch_solar_forecast(lat, lon, FORECAST_DATE)
-    
-    # Run the new energy-volume logic
+    print(f"Analyzing {FORECAST_DATE} based on Total Daily Energy (Threshold: 90%)...")
+
+    solar_data = load_solar_from_cache(FORECAST_DATE)
+
     result = calculate_daily_sunniness(solar_data, threshold=0.9)
     
     print(f"📊 Total Clear-Sky GHI: {result['total_clear_energy']}")
