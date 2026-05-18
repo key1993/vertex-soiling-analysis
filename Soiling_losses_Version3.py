@@ -41,28 +41,9 @@ INVERTER_CAPACITY_KW = 0
 
 ALTITUDE = 770  # Default altitude, will be updated by get_altitude()
 
-# Quality filter and confidence scoring parameters
-MIN_DAILY_DATA_POINTS = 3  # Minimum data points required for daily averaging
-MISSING_MPPT_DIFF_PENALTY = 100  # Assume poor quality if MPPT difference is missing
-
-# Quality filter thresholds
-QUALITY_MIN_OUTPUT_RATIO = 0.2  # Minimum output as ratio of max (20%)
-QUALITY_MAX_MPPT_DIFF = 30  # Maximum MPPT difference percentage for quality inclusion
-QUALITY_MIN_MPPT_CURRENT = 0.1  # Minimum current in amps for each MPPT
-QUALITY_MAX_CLIPPING_RATIO = 0.95  # Maximum ratio to max power before considered clipping
-
-# Confidence scoring thresholds
-CONF_HIGH_HOUR_START = 10  # Start hour for high confidence (10am)
-CONF_HIGH_HOUR_END = 14  # End hour for high confidence (2pm)
-CONF_HIGH_MAX_MPPT_DIFF = 10  # Maximum MPPT difference for high confidence
-CONF_HIGH_MIN_OUTPUT_RATIO = 0.4  # Minimum output ratio for high confidence
-CONF_MEDIUM_MAX_MPPT_DIFF = 20  # Maximum MPPT difference for medium confidence
-CONF_MEDIUM_MIN_OUTPUT_RATIO = 0.2  # Minimum output ratio for medium confidence
-
-# Confidence weights for daily averaging
-CONF_WEIGHT_HIGH = 3
-CONF_WEIGHT_MEDIUM = 2
-CONF_WEIGHT_LOW = 1
+# Analysis parameters
+MIN_DAILY_DATA_POINTS = 3  # Minimum hours required for daily shading average
+QUALITY_MIN_MPPT_CURRENT = 0.1  # Minimum current in amps for valid MPPT reading
 
 # Weather cache configuration
 EARTH_RADIUS_KM = 6371  # Earth's radius in kilometers
@@ -125,153 +106,7 @@ HA_CONFIG_SENSORS = {
     'MAX_TOTAL_DC_POWER': "input_number.max_total_dc_power"
 }
 
-# ===== NEW:  SUNNY DAY DETECTION =====
-def is_sunny_day(solar_forecast_data, threshold=0.75, min_sunny_hours=6):
-    """
-    Determine if a day is sunny enough for soiling analysis.
-    
-    Parameters:
-    -----------
-    solar_forecast_data :  dict
-        Solar forecast data from OpenWeather API
-    threshold : float (0-1)
-        Minimum ratio of cloudy_sky_ghi / clear_sky_ghi to consider an hour "sunny"
-        Default 0.75 means cloudy GHI must be at least 75% of clear sky GHI
-    min_sunny_hours : int
-        Minimum number of sunny hours required to classify day as sunny
-        
-    Returns:
-    --------
-    dict :  {
-        'is_sunny':  bool,           # True if day is suitable for analysis
-        'sunny_hours': int,         # Count of sunny hours
-        'total_daylight_hours': int,# Total hours with sunlight
-        'sunshine_percentage': float,# Percentage of sunny hours
-        'avg_cloud_ratio': float,   # Average cloudy/clear ratio
-        'hourly_status': list       # Per-hour sunny/cloudy classification
-    }
-    """
-    print("[INFO] Analyzing day sunshine conditions...")
-    
-    sunny_hour_count = 0
-    total_daylight_hours = 0
-    cloud_ratios = []
-    hourly_status = []
-    
-    for interval in solar_forecast_data.get('intervals', []):
-        try:
-            clear_ghi = interval['avg_irradiance']['clear_sky']['ghi']
-            cloudy_ghi = interval['avg_irradiance']['cloudy_sky']['ghi']
-            
-            # Skip nighttime hours (no meaningful sunlight)
-            if clear_ghi < 50:   # Less than 50 W/m² is considered night
-                continue
-                
-            total_daylight_hours += 1
-            
-            # Calculate cloud coverage ratio
-            if clear_ghi > 0:
-                cloud_ratio = cloudy_ghi / clear_ghi
-            else:
-                cloud_ratio = 0
-                
-            cloud_ratios.append(cloud_ratio)
-            
-            # Determine if this hour is "sunny"
-            is_hour_sunny = cloud_ratio >= threshold
-            
-            hourly_status.append({
-                'hour': interval['start'],
-                'clear_ghi': clear_ghi,
-                'cloudy_ghi': cloudy_ghi,
-                'cloud_ratio': round(cloud_ratio, 3),
-                'is_sunny': is_hour_sunny
-            })
-            
-            if is_hour_sunny:
-                sunny_hour_count += 1
-                
-        except (KeyError, ZeroDivisionError, TypeError) as e:
-            print(f"[WARNING] Error processing interval: {e}")
-            continue
-    
-    # Calculate aggregate metrics
-    if total_daylight_hours > 0:
-        sunshine_percentage = (sunny_hour_count / total_daylight_hours) * 100
-        avg_cloud_ratio = sum(cloud_ratios) / len(cloud_ratios) if cloud_ratios else 0
-    else:
-        sunshine_percentage = 0
-        avg_cloud_ratio = 0
-    
-    # Determine if day is suitable for analysis
-    is_suitable = sunny_hour_count >= min_sunny_hours
-    
-    result = {
-        'is_sunny': is_suitable,
-        'sunny_hours': sunny_hour_count,
-        'total_daylight_hours': total_daylight_hours,
-        'sunshine_percentage': round(sunshine_percentage, 1),
-        'avg_cloud_ratio': round(avg_cloud_ratio, 3),
-        'hourly_status': hourly_status
-    }
-    
-    # Print diagnostic information
-    print("\n=== SUNNY DAY ANALYSIS RESULTS ===")
-    print(f"Total Daylight Hours: {total_daylight_hours}")
-    print(f"Sunny Hours (>={threshold*100}% clear): {sunny_hour_count}")
-    print(f"Sunshine Percentage: {sunshine_percentage:.1f}%")
-    print(f"Average Cloud Ratio:  {avg_cloud_ratio:.3f}")
-    print(f"Day Classification: {'☀️ SUNNY' if is_suitable else '☁️ CLOUDY'}")
-    print(f"Suitable for Soiling Analysis: {is_suitable}")
-    print("=====================================\n")
-    
-    return result
-
-def update_sunny_day_status_to_ha(is_sunny, sunshine_percentage, sunny_hours, total_hours, date_str):
-    """
-    Update Home Assistant with sunny day detection results.
-    Creates/updates two sensors:
-    1. input_boolean.sunny_day_detected - True/False for automations
-    2. input_text.sunny_day_info - Detailed information
-    """
-    
-    # Update boolean sensor (for automation triggers)
-    boolean_entity = "input_boolean.sunny_day_detected"
-    boolean_url = _api(f"/api/services/input_boolean/turn_{'on' if is_sunny else 'off'}")
-    
-    headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}",
-        "Content-Type": "application/json",
-    }
-    
-    boolean_payload = {
-        "entity_id": boolean_entity
-    }
-    
-    try: 
-        resp = requests.post(boolean_url, headers=headers, data=json.dumps(boolean_payload), timeout=20)
-        resp.raise_for_status()
-        print(f"[OKEY] Updated {boolean_entity} = {'ON' if is_sunny else 'OFF'} for {date_str}")
-    except Exception as e:
-        print(f"[WARNING] Failed to update {boolean_entity}: {e}")
-    
-    # Update text sensor with detailed info
-    text_entity = "input_text.sunny_day_info"
-    text_url = _api("/api/services/input_text/set_value")
-
-    text_payload = {
-        "entity_id": text_entity,
-        "value": f"{sunshine_percentage:.1f}% sunny ({sunny_hours}/{total_hours}h) on {date_str}"
-    }
-    
-    try:
-        resp = requests.post(text_url, headers=headers, data=json.dumps(text_payload), timeout=20)
-        resp.raise_for_status()
-        print(f"[OKEY] Updated {text_entity} = '{sunshine_percentage:.1f}% sunny'")
-    except Exception as e: 
-        print(f"[WARNING] Failed to update {text_entity}: {e}")
-
-# ===== EXISTING FUNCTIONS FROM VERSION 3 (KEEP ALL OF THESE) =====
+# ===== EXISTING FUNCTIONS =====
 
 def fetch_configuration_from_ha():
     """Fetch configuration values from Home Assistant sensors"""
@@ -936,16 +771,32 @@ def fetch_home_assistant_data_range(start_date, end_date):
     
     return df_minute_for_excel, df_hourly_for_excel
 
-def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df, 
-                              actual_minute_df, actual_hourly_df, inverter_capacity_kw=INVERTER_CAPACITY_KW):
+def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
+                              actual_minute_df, actual_hourly_df,
+                              inverter_capacity_kw=INVERTER_CAPACITY_KW,
+                              max_total_dc_power=MAX_TOTAL_DC_POWER):
     hourly_comparison = pd.DataFrame()
     
     if theoretical_hourly_df is not None and not theoretical_hourly_df.empty:
         numeric_columns = theoretical_hourly_df.select_dtypes(include=['number']).columns.tolist()
         
-        if 'dc_output' in numeric_columns: 
+        if 'dc_output' in numeric_columns:
             hourly_comparison['Theoretical DC Output (kW)'] = theoretical_hourly_df['dc_output']
-    
+
+        # Cap theoretical at the rolling max DC observed from the inverter.
+        # During clipping hours both theoretical and actual hit the same ceiling,
+        # so those hours contribute ~0 to the daily loss — no hours are discarded.
+        # max_total_dc_power is in Watts (same unit as sensor.sg_total_dc_power).
+        max_dc_kw = (max_total_dc_power / 1000) if max_total_dc_power > 0 else 0
+        if max_dc_kw > 0 and 'Theoretical DC Output (kW)' in hourly_comparison.columns:
+            hourly_comparison['Theoretical DC Capped (kW)'] = (
+                hourly_comparison['Theoretical DC Output (kW)'].clip(upper=max_dc_kw)
+            )
+        else:
+            hourly_comparison['Theoretical DC Capped (kW)'] = hourly_comparison.get(
+                'Theoretical DC Output (kW)', pd.Series(dtype='float64')
+            )
+
     if actual_hourly_df is not None and not actual_hourly_df.empty:
         for idx in hourly_comparison.index:
             if idx in actual_hourly_df.index:
@@ -1038,9 +889,8 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
             hourly_comparison.loc[mask_mppt_power, 'MPPT2 Current'] / 1000
         ).round(3)
 
-        # Shoulder window: valid comparison zone for oversized DC/AC systems.
-        # Excludes hours where theoretical DC approaches inverter clipping threshold,
-        # which would make actual vs theoretical comparison meaningless.
+        # Shoulder window: quality filter for shading (localized loss).
+        # Soiling uses the full-day energy summation method and does not depend on this window.
         shoulder_lower = inverter_capacity_kw * SHOULDER_LOWER_RATIO
         shoulder_upper = inverter_capacity_kw * SHOULDER_UPPER_RATIO
         hourly_comparison['Shoulder Window'] = (
@@ -1048,9 +898,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
             (hourly_comparison['Theoretical DC Output (kW)'] < shoulder_upper)
         )
 
-        # Differential / common-mode loss decomposition using per-MPPT V×I power:
-        #   Soiling is spatially uniform → both MPPTs lose equally → common-mode signal
-        #   Shading is spatially localized → one MPPT loses more → differential signal
+        # Per-MPPT loss as % of per-MPPT theoretical (equal-string assumption)
         P_theo_each = hourly_comparison['Theoretical DC Output (kW)'] / 2
 
         mask_decomp = (
@@ -1071,83 +919,16 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
             P_theo_each[mask_decomp] * 100
         ).clip(lower=0)
 
-        # Common-mode: minimum loss shared by both MPPTs → soiling candidate
-        common_mode_pct = pd.Series(np.nan, index=hourly_comparison.index)
-        common_mode_pct[mask_decomp] = np.minimum(
-            loss1_pct[mask_decomp], loss2_pct[mask_decomp]
-        )
-
         # Differential: extra loss on the worse MPPT → shading candidate
         differential_pct = pd.Series(np.nan, index=hourly_comparison.index)
         differential_pct[mask_decomp] = (loss1_pct[mask_decomp] - loss2_pct[mask_decomp]).abs()
-        
-        # Quality filter: shoulder window is the gate for oversized DC/AC systems.
-        # The old clipping check against MAX_TOTAL_DC_POWER was incorrect — for an
-        # oversized array the DC peak exceeds inverter capacity, so actual output
-        # is hard-capped by the inverter long before reaching 95% of DC array max.
-        # Shoulder window already excludes those clipping hours via the theoretical
-        # DC ceiling, so no separate clipping check on actual is needed.
-        hourly_comparison['Quality Filter'] = 'EXCLUDE'
 
-        quality_mask = (
-            hourly_comparison['Shoulder Window'] &
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < QUALITY_MAX_MPPT_DIFF) &
-            (hourly_comparison['MPPT1 Current'].fillna(0) > QUALITY_MIN_MPPT_CURRENT) &
-            (hourly_comparison['MPPT2 Current'].fillna(0) > QUALITY_MIN_MPPT_CURRENT) &
-            (hourly_comparison['Actual DC Power (kW)'].notna()) &
-            hourly_comparison['MPPT1 Power (kW)'].notna() &
-            hourly_comparison['MPPT2 Power (kW)'].notna()
-        )
-
-        hourly_comparison.loc[quality_mask, 'Quality Filter'] = 'INCLUDE'
-        
-        # Confidence scoring — shoulder-window aware.
-        # The old fixed midday band (10am-2pm) coincides with the clipping zone on
-        # oversized systems, so we drop the hour condition and score within the
-        # shoulder window based on MPPT balance and irradiance level instead.
-        hourly_comparison['Confidence'] = 'LOW'
-
-        # HIGH: balanced MPPTs, good irradiance, inside shoulder window
-        high_conf_mask = (
-            (hourly_comparison['Quality Filter'] == 'INCLUDE') &
-            hourly_comparison['Shoulder Window'] &
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_HIGH_MAX_MPPT_DIFF) &
-            (hourly_comparison['MPPT Voltage Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_HIGH_MAX_MPPT_DIFF) &
-            (hourly_comparison['Theoretical DC Output (kW)'] > inverter_capacity_kw * CONF_HIGH_MIN_OUTPUT_RATIO)
-        )
-
-        # MEDIUM: moderate MPPT balance, inside shoulder window
-        medium_conf_mask = (
-            (hourly_comparison['Quality Filter'] == 'INCLUDE') &
-            hourly_comparison['Shoulder Window'] &
-            (hourly_comparison['MPPT Current Difference (%)'].fillna(MISSING_MPPT_DIFF_PENALTY) < CONF_MEDIUM_MAX_MPPT_DIFF) &
-            (hourly_comparison['Theoretical DC Output (kW)'] > inverter_capacity_kw * CONF_MEDIUM_MIN_OUTPUT_RATIO) &
-            ~high_conf_mask
-        )
-        
-        hourly_comparison.loc[high_conf_mask, 'Confidence'] = 'HIGH'
-        hourly_comparison.loc[medium_conf_mask, 'Confidence'] = 'MEDIUM'
-        
-        # Shading Loss: differential component (extra loss on the worse MPPT).
-        # Divided by 2 because shading hits only one of two equal strings, so the
-        # differential represents twice the per-string shading loss as % of total.
+        # Shading Loss: differential / 2 (one of two equal strings affected).
+        # Restricted to shoulder-window hours to keep comparisons clean.
         hourly_comparison['Shading Loss (%)'] = pd.Series(dtype='float64')
         mask_valid_shading = mask_decomp & hourly_comparison['Shoulder Window']
         hourly_comparison.loc[mask_valid_shading, 'Shading Loss (%)'] = (
             differential_pct[mask_valid_shading] / 2
-        ).clip(upper=50).round(2)
-
-        # Soiling Loss: common-mode component (both MPPTs equally underperform theoretical).
-        # Computed only inside the shoulder window to avoid contamination from
-        # inverter clipping in peak hours on oversized DC/AC systems.
-        hourly_comparison['Soiling Loss (%)'] = pd.Series(dtype='float64')
-        mask_valid_soiling = (
-            mask_decomp &
-            hourly_comparison['Shoulder Window'] &
-            (hourly_comparison['Quality Filter'] == 'INCLUDE')
-        )
-        hourly_comparison.loc[mask_valid_soiling, 'Soiling Loss (%)'] = (
-            common_mode_pct[mask_valid_soiling]
         ).clip(upper=50).round(2)
         
         hourly_comparison['Theoretical DC (Balanced MPPTs)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
@@ -1184,86 +965,55 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
             hourly_comparison.loc[mask_balanced, 'DC Difference (Balanced MPPTs) (%)'] = diff_series.loc[mask_balanced]
         
         hourly_comparison['date'] = hourly_comparison.index.date
-        
-        # Calculate daily averaged metrics with outlier detection
+        hourly_comparison['Daily Soiling Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
         hourly_comparison['Daily Averaged Shading Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
-        hourly_comparison['Daily Averaged Soiling Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
-        
+
         for date, group in hourly_comparison.groupby('date'):
             try:
-                # Get valid soiling losses (only INCLUDE quality filter)
-                valid_soiling = group[
-                    (group['Quality Filter'] == 'INCLUDE') & 
-                    (group['Soiling Loss (%)'].notna())
-                ]['Soiling Loss (%)']
-                
-                if not valid_soiling.empty and len(valid_soiling) >= MIN_DAILY_DATA_POINTS:
-                    # Outlier detection: remove values > 2 std devs from median
-                    median = valid_soiling.median()
-                    std = valid_soiling.std()
-                    
-                    # Handle case where std is 0 or NaN (all values identical or single value)
-                    if pd.notna(std) and std > 0:
-                        filtered_soiling = valid_soiling[
-                            (valid_soiling >= median - 2 * std) & 
-                            (valid_soiling <= median + 2 * std)
-                        ]
-                    else:
-                        # If std is 0 or NaN, use all values (they're all the same or just one value)
-                        filtered_soiling = valid_soiling
-                    
-                    if not filtered_soiling.empty:
-                        # Weight by confidence: HIGH=3, MEDIUM=2, LOW=1
-                        weights = group.loc[filtered_soiling.index, 'Confidence'].map({
-                            'HIGH': CONF_WEIGHT_HIGH,
-                            'MEDIUM': CONF_WEIGHT_MEDIUM,
-                            'LOW': CONF_WEIGHT_LOW
-                        }).fillna(CONF_WEIGHT_LOW)  # Default to LOW confidence if mapping fails
-                        
-                        weighted_avg = (filtered_soiling * weights).sum() / weights.sum()
-                        
-                        # Store at last timestamp of the day
-                        last_ts = group.index.max()
-                        hourly_comparison.loc[last_ts, 'Daily Averaged Soiling Loss (%)'] = round(weighted_avg, 2)
-                
-                # Calculate daily shading loss with outlier detection (consistent with soiling loss)
+                last_ts = group.index.max()
+
+                # Soiling: daily energy summation — capped theoretical vs actual.
+                # Only hours with valid actual readings are included in both sums
+                # so sensor gaps do not inflate the loss artificially.
+                valid_hours = (
+                    group['Actual DC Power (kW)'].notna() &
+                    (group['Actual DC Power (kW)'] >= 0)
+                )
+                if valid_hours.any():
+                    theo_energy = group.loc[valid_hours, 'Theoretical DC Capped (kW)'].sum()
+                    actual_energy = group.loc[valid_hours, 'Actual DC Power (kW)'].sum()
+                    if theo_energy > 0:
+                        soiling_loss = max(0.0, (theo_energy - actual_energy) / theo_energy * 100)
+                        hourly_comparison.loc[last_ts, 'Daily Soiling Loss (%)'] = round(soiling_loss, 2)
+
+                # Shading: daily average of per-hour differential losses with outlier removal
                 valid_shading = group[group['Shading Loss (%)'].notna()]['Shading Loss (%)']
                 if not valid_shading.empty and len(valid_shading) >= MIN_DAILY_DATA_POINTS:
-                    # Apply same outlier detection as soiling loss
                     median = valid_shading.median()
                     std = valid_shading.std()
-                    
-                    # Handle case where std is 0 or NaN (all values identical or single value)
                     if pd.notna(std) and std > 0:
                         filtered_shading = valid_shading[
-                            (valid_shading >= median - 2 * std) & 
+                            (valid_shading >= median - 2 * std) &
                             (valid_shading <= median + 2 * std)
                         ]
                     else:
-                        # If std is 0 or NaN, use all values (they're all the same or just one value)
                         filtered_shading = valid_shading
-                    
                     if not filtered_shading.empty:
-                        avg_shading = filtered_shading.mean()
-                        last_ts = group.index.max()
-                        hourly_comparison.loc[last_ts, 'Daily Averaged Shading Loss (%)'] = round(avg_shading, 2)
-                    
+                        hourly_comparison.loc[last_ts, 'Daily Averaged Shading Loss (%)'] = round(filtered_shading.mean(), 2)
+
             except Exception as e:
-                print(f"[WARNING] Error calculating daily average for {date}: {e}")
-                pass
+                print(f"[WARNING] Error calculating daily losses for {date}: {e}")
     
     # Reorder columns for better Excel output
     # Define the desired column order
     desired_order = [
         'Theoretical DC Output (kW)',
+        'Theoretical DC Capped (kW)',
         'Actual DC Power (kW)',
         'MPPT1 Power (kW)',
         'MPPT2 Power (kW)',
         'Shoulder Window',
         'Shading Loss (%)',
-        'Soiling Loss (%)',
-        'Quality Filter',
-        'Confidence',
         'MPPT1 Voltage',
         'MPPT2 Voltage',
         'MPPT1 Current',
@@ -1277,8 +1027,8 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         'Theoretical DC (Balanced MPPTs)',
         'Actual DC (Balanced MPPTs)',
         'DC Difference (Balanced MPPTs) (%)',
+        'Daily Soiling Loss (%)',
         'Daily Averaged Shading Loss (%)',
-        'Daily Averaged Soiling Loss (%)',
         'date'
     ]
     
@@ -1376,10 +1126,8 @@ def export_to_excel(
         print(f"Error exporting to Excel: {e}")
         return None
 
-# ===== NEW:  MODIFIED MAIN FUNCTION WITH SUNNY DAY CHECK =====
-
 def main():
-    """Main function with sunny day detection"""
+    """Main function"""
     print(f"=== Starting Solar Analysis for {FORECAST_DATE} ===")
     
     # Step 1: Fetch configuration from Home Assistant
@@ -1394,56 +1142,7 @@ def main():
     print("\n=== PHASE 1: FETCHING WEATHER DATA ===")
     solar_data = fetch_solar_forecast(FORECAST_DATE)
     
-    # ⭐ NEW: Step 4: Check if day is sunny enough for analysis
-    print("\n=== PHASE 2: SUNNY DAY DETECTION ===")
-    sunny_analysis = is_sunny_day(
-        solar_data,
-        threshold=0.9,        # Adjust:  0.75 = need 75% of clear sky irradiance
-        min_sunny_hours=6      # Adjust: need at least 6 sunny hours
-    )
-    
-    # Update Home Assistant with sunny day status
-    update_sunny_day_status_to_ha(
-        sunny_analysis['is_sunny'],
-        sunny_analysis['sunshine_percentage'],
-        sunny_analysis['sunny_hours'],
-        sunny_analysis['total_daylight_hours'],
-        FORECAST_DATE
-    )
-    
-    # ⭐ NEW: Exit early if day is too cloudy
-    if not sunny_analysis['is_sunny']: 
-        print("\n[INFO] Day is too cloudy for reliable soiling analysis.")
-        print("[INFO] Skipping full calculation.  Home Assistant updated with cloudy status.")
-        
-        # Create a simple report
-        simple_report = {
-            'date': FORECAST_DATE,
-            'status': 'Cloudy - Analysis Skipped',
-            'sunny_hours': sunny_analysis['sunny_hours'],
-            'total_daylight_hours': sunny_analysis['total_daylight_hours'],
-            'sunshine_percentage': sunny_analysis['sunshine_percentage'],
-            'avg_cloud_ratio': sunny_analysis['avg_cloud_ratio'],
-            'reason': f"Only {sunny_analysis['sunny_hours']} sunny hours out of {sunny_analysis['total_daylight_hours']} daylight hours (need 6+)"
-        }
-        
-        # Export minimal report into the user's named folder
-        user_folder = fetch_user_name_from_ha()
-        import os as _os
-        _os.makedirs(user_folder, exist_ok=True)
-        pd.DataFrame([simple_report]).to_excel(
-            f"{user_folder}/skipped_analysis_{FORECAST_DATE}.xlsx",
-            sheet_name="Skipped - Cloudy Day",
-            index=False
-        )
-
-        print(f"[OKEY] Minimal report saved:  {user_folder}/skipped_analysis_{FORECAST_DATE}.xlsx")
-        return  # Exit without full analysis
-    
-    # ✅ Day is sunny - proceed with full analysis
-    print("\n[OKEY] Day is sunny!  Proceeding with full soiling analysis...")
-    
-    # Step 5: Fetch weather data
+    # Step 4: Fetch weather data
     weather_data = fetch_weather_data(FORECAST_DATE)
     
     # Step 6: Merge data
@@ -1484,6 +1183,7 @@ def main():
             actual_minute_df,
             actual_hourly_df,
             inverter_capacity_kw=INVERTER_CAPACITY_KW,
+            max_total_dc_power=MAX_TOTAL_DC_POWER,
         )
 
         if hourly_comparison_df is None:
@@ -1511,7 +1211,7 @@ def main():
                         print(f"{date_str:<12} {loss_value}")
 
             # Print Soiling Losses
-            soiling_col = "Daily Averaged Soiling Loss (%)"
+            soiling_col = "Daily Soiling Loss (%)"
             if soiling_col in hourly_comparison_df.columns:
                 daily_soiling = hourly_comparison_df[hourly_comparison_df[soiling_col].notna()]
                 if not daily_soiling.empty:
