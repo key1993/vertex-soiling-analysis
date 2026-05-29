@@ -1,0 +1,1102 @@
+{
+    "date": "2026-05-29",
+    "city": "Irbid",
+    "coordinates": {
+        "lat": 32.5514,
+        "lon": 35.8515
+    },
+    "solar_forecast": {
+        "lat": 32.5514,
+        "lon": 35.8515,
+        "date": "2026-05-29",
+        "interval": "1h",
+        "tz": "+03:00",
+        "sunrise": "2026-05-29T05:30:58",
+        "sunset": "2026-05-29T19:37:16",
+        "intervals": [
+            {
+                "start": "00:00",
+                "end": "00:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "01:00",
+                "end": "01:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "02:00",
+                "end": "02:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "03:00",
+                "end": "03:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "04:00",
+                "end": "04:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "05:00",
+                "end": "05:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 7.6,
+                        "dni": 54.92,
+                        "dhi": 8.36
+                    },
+                    "cloudy_sky": {
+                        "ghi": 7.6,
+                        "dni": 20.44,
+                        "dhi": 6.36
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 27.92,
+                        "dni": 197.6,
+                        "dhi": 25.64
+                    },
+                    "cloudy_sky": {
+                        "ghi": 27.92,
+                        "dni": 81.76,
+                        "dhi": 22.96
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 7.6,
+                        "dni": 54.91,
+                        "dhi": 8.35
+                    },
+                    "cloudy_sky": {
+                        "ghi": 7.6,
+                        "dni": 20.44,
+                        "dhi": 6.36
+                    }
+                }
+            },
+            {
+                "start": "06:00",
+                "end": "06:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 135.6,
+                        "dni": 466.4,
+                        "dhi": 52.52
+                    },
+                    "cloudy_sky": {
+                        "ghi": 135.6,
+                        "dni": 414.4,
+                        "dhi": 50.76
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 208.64,
+                        "dni": 577.08,
+                        "dhi": 65.08
+                    },
+                    "cloudy_sky": {
+                        "ghi": 208.64,
+                        "dni": 579.64,
+                        "dhi": 56.52
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 135.59,
+                        "dni": 466.41,
+                        "dhi": 52.5
+                    },
+                    "cloudy_sky": {
+                        "ghi": 135.59,
+                        "dni": 414.39,
+                        "dhi": 50.77
+                    }
+                }
+            },
+            {
+                "start": "07:00",
+                "end": "07:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 341.32,
+                        "dni": 685.48,
+                        "dhi": 80.08
+                    },
+                    "cloudy_sky": {
+                        "ghi": 341.32,
+                        "dni": 686.68,
+                        "dhi": 72.68
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 421.92,
+                        "dni": 737.44,
+                        "dhi": 87.92
+                    },
+                    "cloudy_sky": {
+                        "ghi": 421.92,
+                        "dni": 736.12,
+                        "dhi": 81.84
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 341.32,
+                        "dni": 685.48,
+                        "dhi": 80.09
+                    },
+                    "cloudy_sky": {
+                        "ghi": 341.32,
+                        "dni": 686.66,
+                        "dhi": 72.66
+                    }
+                }
+            },
+            {
+                "start": "08:00",
+                "end": "08:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 552.96,
+                        "dni": 797.16,
+                        "dhi": 98.08
+                    },
+                    "cloudy_sky": {
+                        "ghi": 552.96,
+                        "dni": 792.8,
+                        "dhi": 93.76
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 629.28,
+                        "dni": 827.2,
+                        "dhi": 103.52
+                    },
+                    "cloudy_sky": {
+                        "ghi": 629.28,
+                        "dni": 825.08,
+                        "dhi": 98.08
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 552.97,
+                        "dni": 797.15,
+                        "dhi": 98.1
+                    },
+                    "cloudy_sky": {
+                        "ghi": 552.97,
+                        "dni": 792.79,
+                        "dhi": 93.75
+                    }
+                }
+            },
+            {
+                "start": "09:00",
+                "end": "09:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 744.0,
+                        "dni": 863.36,
+                        "dhi": 110.56
+                    },
+                    "cloudy_sky": {
+                        "ghi": 744.0,
+                        "dni": 840.64,
+                        "dhi": 120.32
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 808.12,
+                        "dni": 881.72,
+                        "dhi": 114.28
+                    },
+                    "cloudy_sky": {
+                        "ghi": 808.12,
+                        "dni": 860.4,
+                        "dhi": 128.4
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 744.01,
+                        "dni": 863.36,
+                        "dhi": 110.57
+                    },
+                    "cloudy_sky": {
+                        "ghi": 744.01,
+                        "dni": 840.64,
+                        "dhi": 120.31
+                    }
+                }
+            },
+            {
+                "start": "10:00",
+                "end": "10:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 895.64,
+                        "dni": 903.48,
+                        "dhi": 118.92
+                    },
+                    "cloudy_sky": {
+                        "ghi": 895.64,
+                        "dni": 876.36,
+                        "dhi": 134.2
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 941.6,
+                        "dni": 914.24,
+                        "dhi": 121.28
+                    },
+                    "cloudy_sky": {
+                        "ghi": 941.6,
+                        "dni": 913.92,
+                        "dhi": 149.68
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 895.63,
+                        "dni": 903.47,
+                        "dhi": 118.93
+                    },
+                    "cloudy_sky": {
+                        "ghi": 895.63,
+                        "dni": 876.37,
+                        "dhi": 134.18
+                    }
+                }
+            },
+            {
+                "start": "11:00",
+                "end": "11:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 994.12,
+                        "dni": 925.56,
+                        "dhi": 123.8
+                    },
+                    "cloudy_sky": {
+                        "ghi": 994.12,
+                        "dni": 913.12,
+                        "dhi": 127.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 1017.92,
+                        "dni": 930.56,
+                        "dhi": 124.96
+                    },
+                    "cloudy_sky": {
+                        "ghi": 1017.92,
+                        "dni": 913.8,
+                        "dhi": 133.64
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 994.11,
+                        "dni": 925.57,
+                        "dhi": 123.82
+                    },
+                    "cloudy_sky": {
+                        "ghi": 994.11,
+                        "dni": 913.14,
+                        "dhi": 127.01
+                    }
+                }
+            },
+            {
+                "start": "12:00",
+                "end": "12:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 1030.88,
+                        "dni": 933.2,
+                        "dhi": 125.56
+                    },
+                    "cloudy_sky": {
+                        "ghi": 1030.88,
+                        "dni": 911.84,
+                        "dhi": 137.48
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 1033.48,
+                        "dni": 933.72,
+                        "dhi": 125.68
+                    },
+                    "cloudy_sky": {
+                        "ghi": 1033.48,
+                        "dni": 912.08,
+                        "dhi": 138.28
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 1030.88,
+                        "dni": 933.19,
+                        "dhi": 125.54
+                    },
+                    "cloudy_sky": {
+                        "ghi": 1030.88,
+                        "dni": 911.86,
+                        "dhi": 137.49
+                    }
+                }
+            },
+            {
+                "start": "13:00",
+                "end": "13:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 1002.76,
+                        "dni": 927.44,
+                        "dhi": 124.2
+                    },
+                    "cloudy_sky": {
+                        "ghi": 1002.76,
+                        "dni": 912.68,
+                        "dhi": 129.6
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 1023.4,
+                        "dni": 931.72,
+                        "dhi": 125.2
+                    },
+                    "cloudy_sky": {
+                        "ghi": 1023.4,
+                        "dni": 913.32,
+                        "dhi": 135.4
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 1002.77,
+                        "dni": 927.44,
+                        "dhi": 124.21
+                    },
+                    "cloudy_sky": {
+                        "ghi": 1002.77,
+                        "dni": 912.7,
+                        "dhi": 129.62
+                    }
+                }
+            },
+            {
+                "start": "14:00",
+                "end": "14:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 912.2,
+                        "dni": 907.44,
+                        "dhi": 119.76
+                    },
+                    "cloudy_sky": {
+                        "ghi": 912.2,
+                        "dni": 876.48,
+                        "dhi": 138.72
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 955.4,
+                        "dni": 917.36,
+                        "dhi": 121.92
+                    },
+                    "cloudy_sky": {
+                        "ghi": 955.4,
+                        "dni": 913.6,
+                        "dhi": 154.28
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 912.21,
+                        "dni": 907.46,
+                        "dhi": 119.74
+                    },
+                    "cloudy_sky": {
+                        "ghi": 912.21,
+                        "dni": 876.46,
+                        "dhi": 138.72
+                    }
+                }
+            },
+            {
+                "start": "15:00",
+                "end": "15:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 767.08,
+                        "dni": 870.12,
+                        "dhi": 111.88
+                    },
+                    "cloudy_sky": {
+                        "ghi": 767.08,
+                        "dni": 847.32,
+                        "dhi": 121.92
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 829.04,
+                        "dni": 887.28,
+                        "dhi": 115.4
+                    },
+                    "cloudy_sky": {
+                        "ghi": 829.04,
+                        "dni": 861.56,
+                        "dhi": 128.72
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 767.07,
+                        "dni": 870.12,
+                        "dhi": 111.88
+                    },
+                    "cloudy_sky": {
+                        "ghi": 767.07,
+                        "dni": 847.32,
+                        "dhi": 121.94
+                    }
+                }
+            },
+            {
+                "start": "16:00",
+                "end": "16:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 580.44,
+                        "dni": 808.2,
+                        "dhi": 100.04
+                    },
+                    "cloudy_sky": {
+                        "ghi": 580.44,
+                        "dni": 802.08,
+                        "dhi": 97.04
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 655.48,
+                        "dni": 836.28,
+                        "dhi": 105.16
+                    },
+                    "cloudy_sky": {
+                        "ghi": 655.48,
+                        "dni": 824.56,
+                        "dhi": 106.12
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 580.43,
+                        "dni": 808.2,
+                        "dhi": 100.03
+                    },
+                    "cloudy_sky": {
+                        "ghi": 580.43,
+                        "dni": 802.09,
+                        "dhi": 97.02
+                    }
+                }
+            },
+            {
+                "start": "17:00",
+                "end": "17:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 370.36,
+                        "dni": 704.72,
+                        "dhi": 82.92
+                    },
+                    "cloudy_sky": {
+                        "ghi": 370.36,
+                        "dni": 703.28,
+                        "dhi": 76.76
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 450.88,
+                        "dni": 752.6,
+                        "dhi": 90.36
+                    },
+                    "cloudy_sky": {
+                        "ghi": 450.88,
+                        "dni": 746.92,
+                        "dhi": 86.52
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 370.36,
+                        "dni": 704.73,
+                        "dhi": 82.94
+                    },
+                    "cloudy_sky": {
+                        "ghi": 370.36,
+                        "dni": 703.29,
+                        "dhi": 76.75
+                    }
+                }
+            },
+            {
+                "start": "18:00",
+                "end": "18:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 161.84,
+                        "dni": 508.4,
+                        "dhi": 57.16
+                    },
+                    "cloudy_sky": {
+                        "ghi": 161.84,
+                        "dni": 486.72,
+                        "dhi": 52.16
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 236.92,
+                        "dni": 605.92,
+                        "dhi": 68.8
+                    },
+                    "cloudy_sky": {
+                        "ghi": 236.92,
+                        "dni": 600.76,
+                        "dhi": 62.64
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 161.83,
+                        "dni": 508.41,
+                        "dhi": 57.18
+                    },
+                    "cloudy_sky": {
+                        "ghi": 161.83,
+                        "dni": 486.74,
+                        "dhi": 52.17
+                    }
+                }
+            },
+            {
+                "start": "19:00",
+                "end": "19:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 15.48,
+                        "dni": 99.6,
+                        "dhi": 12.88
+                    },
+                    "cloudy_sky": {
+                        "ghi": 15.48,
+                        "dni": 49.72,
+                        "dhi": 11.12
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 47.64,
+                        "dni": 278.96,
+                        "dhi": 33.08
+                    },
+                    "cloudy_sky": {
+                        "ghi": 47.64,
+                        "dni": 198.92,
+                        "dhi": 30.24
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 15.47,
+                        "dni": 99.59,
+                        "dhi": 12.89
+                    },
+                    "cloudy_sky": {
+                        "ghi": 15.47,
+                        "dni": 49.73,
+                        "dhi": 11.12
+                    }
+                }
+            },
+            {
+                "start": "20:00",
+                "end": "20:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "21:00",
+                "end": "21:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "22:00",
+                "end": "22:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            },
+            {
+                "start": "23:00",
+                "end": "23:59",
+                "avg_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "max_irradiance": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                },
+                "irradiation": {
+                    "clear_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    },
+                    "cloudy_sky": {
+                        "ghi": 0.0,
+                        "dni": 0.0,
+                        "dhi": 0.0
+                    }
+                }
+            }
+        ]
+    },
+    "ambient_weather": [
+        {
+            "hour": 0,
+            "temp": 15.1,
+            "wind_speed": 3.45
+        },
+        {
+            "hour": 1,
+            "temp": 14.81,
+            "wind_speed": 3.64
+        },
+        {
+            "hour": 2,
+            "temp": 14.47,
+            "wind_speed": 3.6
+        },
+        {
+            "hour": 3,
+            "temp": 14.63,
+            "wind_speed": 3.35
+        },
+        {
+            "hour": 4,
+            "temp": 16.45,
+            "wind_speed": 4.18
+        },
+        {
+            "hour": 5,
+            "temp": 18.21,
+            "wind_speed": 5.61
+        },
+        {
+            "hour": 6,
+            "temp": 19.5,
+            "wind_speed": 6.36
+        },
+        {
+            "hour": 7,
+            "temp": 20.79,
+            "wind_speed": 6.75
+        },
+        {
+            "hour": 8,
+            "temp": 22.52,
+            "wind_speed": 7.52
+        },
+        {
+            "hour": 9,
+            "temp": 24.04,
+            "wind_speed": 8.39
+        },
+        {
+            "hour": 10,
+            "temp": 25.08,
+            "wind_speed": 9.57
+        },
+        {
+            "hour": 11,
+            "temp": 25.29,
+            "wind_speed": 10.13
+        },
+        {
+            "hour": 12,
+            "temp": 24.96,
+            "wind_speed": 10.33
+        },
+        {
+            "hour": 13,
+            "temp": 24.37,
+            "wind_speed": 9.96
+        },
+        {
+            "hour": 14,
+            "temp": 23.28,
+            "wind_speed": 9.55
+        },
+        {
+            "hour": 15,
+            "temp": 21.95,
+            "wind_speed": 8.8
+        },
+        {
+            "hour": 16,
+            "temp": 20.32,
+            "wind_speed": 7.25
+        },
+        {
+            "hour": 17,
+            "temp": 18.57,
+            "wind_speed": 5.71
+        },
+        {
+            "hour": 18,
+            "temp": 17.69,
+            "wind_speed": 4.93
+        },
+        {
+            "hour": 19,
+            "temp": 17.13,
+            "wind_speed": 4.3
+        },
+        {
+            "hour": 20,
+            "temp": 16.74,
+            "wind_speed": 3.56
+        },
+        {
+            "hour": 21,
+            "temp": 16.24,
+            "wind_speed": 3.43
+        },
+        {
+            "hour": 22,
+            "temp": 15.75,
+            "wind_speed": 3.35
+        },
+        {
+            "hour": 23,
+            "temp": 15.41,
+            "wind_speed": 3.08
+        }
+    ],
+    "harvested_at": "2026-05-29T18:04:53.703054"
+}
