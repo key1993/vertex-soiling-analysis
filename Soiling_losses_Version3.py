@@ -820,45 +820,8 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
         return hourly_comparison
     
     if 'Theoretical DC Output (kW)' in hourly_comparison.columns and 'Actual DC Power (kW)' in hourly_comparison.columns:
-        hourly_comparison['DC Output Difference (kW)'] = hourly_comparison['Theoretical DC Output (kW)'] - hourly_comparison['Actual DC Power (kW)']
-        
-        mask = hourly_comparison['Theoretical DC Output (kW)'] > 0
-        hourly_comparison['DC Output Difference (%)'] = pd.Series(dtype='float64')
-        hourly_comparison.loc[mask, 'DC Output Difference (%)'] = (
-            (hourly_comparison.loc[mask, 'Theoretical DC Output (kW)'] - hourly_comparison.loc[mask, 'Actual DC Power (kW)']) / 
-            hourly_comparison.loc[mask, 'Theoretical DC Output (kW)'] * 100
-        ).round(2)
-        
-        hourly_comparison['Theoretical DC Output Limited (kW)'] = hourly_comparison['Theoretical DC Output (kW)'].astype('object')
-        hourly_comparison['Actual DC Power Limited (kW)'] = hourly_comparison['Actual DC Power (kW)'].astype('object')
-        
-        mask_theo_over = hourly_comparison['Theoretical DC Output (kW)'] > inverter_capacity_kw
-        mask_actual_over = hourly_comparison['Actual DC Power (kW)'] > inverter_capacity_kw
-        
-        hourly_comparison.loc[mask_theo_over, 'Theoretical DC Output Limited (kW)'] = 'N/A'
-        hourly_comparison.loc[mask_actual_over, 'Actual DC Power Limited (kW)'] = 'N/A'
-        
-        mask_any_na = (hourly_comparison['Theoretical DC Output Limited (kW)'] == 'N/A') | (hourly_comparison['Actual DC Power Limited (kW)'] == 'N/A')
-        hourly_comparison.loc[mask_any_na, 'Theoretical DC Output Limited (kW)'] = 'N/A'
-        hourly_comparison.loc[mask_any_na, 'Actual DC Power Limited (kW)'] = 'N/A'
-        
-        hourly_comparison['MPPT Voltage Difference (%)'] = pd.Series(dtype='float64')
         hourly_comparison['MPPT Current Difference (%)'] = pd.Series(dtype='float64')
-        
-        mask_valid_mppt_v = (
-            hourly_comparison['MPPT1 Voltage'].notna() & 
-            hourly_comparison['MPPT2 Voltage'].notna() & 
-            (hourly_comparison['MPPT1 Voltage'] > 0) & 
-            (hourly_comparison['MPPT2 Voltage'] > 0)
-        )
-        
-        hourly_comparison.loc[mask_valid_mppt_v, 'MPPT Voltage Difference (%)'] = (
-            abs(hourly_comparison.loc[mask_valid_mppt_v, 'MPPT1 Voltage'] - 
-                hourly_comparison.loc[mask_valid_mppt_v, 'MPPT2 Voltage']) / 
-            ((hourly_comparison.loc[mask_valid_mppt_v, 'MPPT1 Voltage'] + 
-              hourly_comparison.loc[mask_valid_mppt_v, 'MPPT2 Voltage']) / 2) * 100
-        ).round(2)
-        
+
         mask_valid_mppt_c = (
             hourly_comparison['MPPT1 Current'].notna() & 
             hourly_comparison['MPPT2 Current'].notna() & 
@@ -935,46 +898,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
             differential_pct[mask_valid_shading] / 2
         ).clip(upper=50).round(2)
         
-        hourly_comparison['Theoretical DC (Balanced MPPTs)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
-        hourly_comparison['Actual DC (Balanced MPPTs)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
-        hourly_comparison['DC Difference (Balanced MPPTs) (%)'] = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
-        
-        capacity_threshold = inverter_capacity_kw * 0.2
-        
-        mask_balanced = (
-            (hourly_comparison['Theoretical DC Output Limited (kW)'] != 'N/A') & 
-            (hourly_comparison['Actual DC Power Limited (kW)'] != 'N/A') &
-            hourly_comparison['MPPT Voltage Difference (%)'].notna() &
-            hourly_comparison['MPPT Current Difference (%)'].notna() &
-            (hourly_comparison['MPPT Voltage Difference (%)'] < 5) &
-            (hourly_comparison['MPPT Current Difference (%)'] < 5) &
-            (pd.to_numeric(hourly_comparison['Theoretical DC Output Limited (kW)'], errors='coerce') > capacity_threshold) &
-            (pd.to_numeric(hourly_comparison['Actual DC Power Limited (kW)'], errors='coerce') > capacity_threshold)
-        )
-        
-        hourly_comparison.loc[mask_balanced, 'Theoretical DC (Balanced MPPTs)'] = hourly_comparison.loc[mask_balanced, 'Theoretical DC Output Limited (kW)']
-        hourly_comparison.loc[mask_balanced, 'Actual DC (Balanced MPPTs)'] = hourly_comparison.loc[mask_balanced, 'Actual DC Power Limited (kW)']
-        
-        theo_balanced_numeric = pd.to_numeric(hourly_comparison.loc[mask_balanced, 'Theoretical DC (Balanced MPPTs)'], errors='coerce')
-        actual_balanced_numeric = pd.to_numeric(hourly_comparison.loc[mask_balanced, 'Actual DC (Balanced MPPTs)'], errors='coerce')
-        
-        valid_rows = theo_balanced_numeric.notna() & (theo_balanced_numeric > 0) & actual_balanced_numeric.notna()
-        if not valid_rows.empty:
-            diff_pct = ((theo_balanced_numeric[valid_rows] - actual_balanced_numeric[valid_rows]) / 
-                        theo_balanced_numeric[valid_rows] * 100).round(2)
-            
-            diff_series = pd.Series('N/A', index=hourly_comparison.index, dtype='object')
-            valid_indices = valid_rows.index[valid_rows]
-            diff_series.loc[valid_indices] = diff_pct.loc[valid_indices].astype(str)
-            hourly_comparison.loc[mask_balanced, 'DC Difference (Balanced MPPTs) (%)'] = diff_series.loc[mask_balanced]
-        
         hourly_comparison['date'] = hourly_comparison.index.date
-
-        # Mark hours excluded from the soiling calculation due to MPPT current imbalance > 5%.
-        hourly_comparison['Shading Excluded'] = (
-            hourly_comparison['MPPT Current Difference (%)'].notna() &
-            (hourly_comparison['MPPT Current Difference (%)'] > SHADING_EXCLUSION_MPPT_DIFF)
-        )
 
         hourly_comparison['Daily Soiling Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
         hourly_comparison['Daily Averaged Shading Loss (%)'] = pd.Series(pd.NA, index=hourly_comparison.index)
@@ -1000,7 +924,7 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
                     theo_energy = group.loc[valid_hours, 'Theoretical DC Capped (kW)'].sum()
                     actual_energy = group.loc[valid_hours, 'Actual DC Power (kW)'].sum()
                     if theo_energy > 0:
-                        soiling_loss = max(0.0, (theo_energy - actual_energy) / theo_energy * 100)
+                        soiling_loss = max(1.0, (theo_energy - actual_energy) / theo_energy * 100)
                         hourly_comparison.loc[last_ts, 'Daily Soiling Loss (%)'] = round(soiling_loss, 2)
 
                 # Shading: daily average of per-hour differential losses with outlier removal
@@ -1021,39 +945,23 @@ def create_complete_comparison(theoretical_detailed_df, theoretical_hourly_df,
             except Exception as e:
                 print(f"[WARNING] Error calculating daily losses for {date}: {e}")
     
-    # Reorder columns for better Excel output
-    # Define the desired column order
     desired_order = [
         'Theoretical DC Output (kW)',
         'Theoretical DC Capped (kW)',
         'Actual DC Power (kW)',
-        'MPPT1 Power (kW)',
-        'MPPT2 Power (kW)',
-        'Shoulder Window',
-        'Shading Excluded',
-        'Shading Loss (%)',
         'MPPT1 Voltage',
         'MPPT2 Voltage',
         'MPPT1 Current',
         'MPPT2 Current',
-        'MPPT Voltage Difference (%)',
         'MPPT Current Difference (%)',
-        'DC Output Difference (kW)',
-        'DC Output Difference (%)',
-        'Theoretical DC Output Limited (kW)',
-        'Actual DC Power Limited (kW)',
-        'Theoretical DC (Balanced MPPTs)',
-        'Actual DC (Balanced MPPTs)',
-        'DC Difference (Balanced MPPTs) (%)',
+        'Shading Loss (%)',
         'Daily Soiling Loss (%)',
         'Daily Averaged Shading Loss (%)',
         'date'
     ]
-    
-    # Reorder columns - only include columns that exist
+
     existing_cols = [col for col in desired_order if col in hourly_comparison.columns]
-    other_cols = [col for col in hourly_comparison.columns if col not in desired_order]
-    hourly_comparison = hourly_comparison[existing_cols + other_cols]
+    hourly_comparison = hourly_comparison[existing_cols]
     
     return hourly_comparison
 
