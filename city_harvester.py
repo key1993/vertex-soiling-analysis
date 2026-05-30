@@ -1,9 +1,11 @@
 import requests
 import json
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 # === CONFIGURATION ===
+JORDAN_TZ = ZoneInfo("Asia/Amman")
 API_KEY = os.environ.get("OPENWEATHER_API_KEY", "")
 if not API_KEY:
     print("❌ ERROR: OPENWEATHER_API_KEY environment variable is not set.")
@@ -17,7 +19,8 @@ def harvest_daily_data():
     if not os.path.exists(CACHE_DIR):
         os.makedirs(CACHE_DIR)
         
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    now_jordan = datetime.now(JORDAN_TZ)
+    today_str = now_jordan.strftime("%Y-%m-%d")
     print(f"[INFO] Starting harvest for {CITY_NAME} on {today_str}...")
 
     # 1. Fetch Solar Irradiance Data (Energy API)
@@ -55,7 +58,7 @@ def harvest_daily_data():
             "coordinates": {"lat": LAT, "lon": LON},
             "solar_forecast": solar_resp,
             "ambient_weather": weather_hourly,
-            "harvested_at": datetime.now().isoformat()
+            "harvested_at": now_jordan.isoformat()
         }
         
         file_path = os.path.join(CACHE_DIR, f"{today_str}.json")
