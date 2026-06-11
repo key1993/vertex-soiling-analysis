@@ -1,8 +1,6 @@
 name: Daily City Weather Harvester
 
 on:
-  schedule:
-    - cron: '30 17 * * *' # 8:30 PM Jordan Time (UTC+3)
   workflow_dispatch:
 
 jobs:
