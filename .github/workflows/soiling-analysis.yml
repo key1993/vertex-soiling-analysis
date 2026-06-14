@@ -56,20 +56,22 @@ jobs:
   run-soiling-analysis:
     if: github.event.action == 'run_full_analysis' || github.event.action == 'run_soiling_analysis'
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
-        with: 
+        with:
           python-version: '3.10'
-      
+
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-      
+
       - name: Run soiling analysis
         env:
           OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
@@ -79,7 +81,15 @@ jobs:
             "${{ github.event.client_payload.ha_token || github.event.inputs.ha_token }}" \
             "${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}" \
             "${{ github.event.client_payload.account_id || github.event.inputs.account_id }}"
-      
+
+      - name: Commit report to repository
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add reports/
+          git commit -m "Add soiling report for ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }} [skip ci]" || echo "No new report to commit"
+          git push
+
       - name: Upload results
         uses: actions/upload-artifact@v4
         with:
@@ -88,7 +98,7 @@ jobs:
             reports/**/*.xlsx
             reports/**/*.png
           retention-days: 30
-      
+
       - name: Notify Home Assistant (Success)
         if: success()
         run: |
@@ -97,7 +107,7 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{
               "title": "✅ Soiling Analysis Complete",
-              "message": "Analysis completed successfully for ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}. Check artifacts for results.",
+              "message": "Analysis completed successfully for ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }}. Report saved to reports/ in repository.",
               "notification_id": "soiling_analysis_result"
             }'
 
