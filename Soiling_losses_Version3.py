@@ -1085,12 +1085,13 @@ def main():
         print("Could not determine date range from weather data")
         return
     
-    # Create output directory named after the account's user_name
+    # Create output directory: reports/{client_name}/
     import os
-    user_folder = fetch_user_name_from_ha()
-    os.makedirs(user_folder, exist_ok=True)
+    client_name = fetch_user_name_from_ha()
+    report_dir = os.path.join("reports", client_name)
+    os.makedirs(report_dir, exist_ok=True)
 
-    output_filename = f"{user_folder}/solar_analysis_{start_date.date()}_to_{end_date.date()}.xlsx"
+    output_filename = os.path.join(report_dir, f"solar_analysis_{start_date.date()}_to_{end_date.date()}.xlsx")
     
     # Step 9: Convert theoretical results to DataFrames
     theoretical_detailed_df, theoretical_hourly_df = convert_theoretical_to_dataframe(all_results, hourly_averages)
