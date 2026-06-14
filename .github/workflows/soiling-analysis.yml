@@ -88,6 +88,7 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add reports/
           git commit -m "Add soiling report for ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }} [skip ci]" || echo "No new report to commit"
+          git pull --rebase origin main
           git push
 
       - name: Upload results
