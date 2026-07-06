@@ -184,9 +184,38 @@ def get_altitude(lat, lon):
         return 770
 
 def fetch_solar_forecast(date):
-    """Fetch solar irradiance forecast data from OpenWeatherMap API"""
+    """Fetch solar irradiance forecast data, preferring a nearby cached
+    weather_cache/{date}.json (e.g. from the local GHI sensor harvester)
+    over the live OpenWeatherMap API, mirroring fetch_weather_data()'s cache
+    check below."""
+    cache_file = os.path.join("weather_cache", f"{date}.json")
+
+    if os.path.exists(cache_file):
+        try:
+            with open(cache_file, 'r') as f:
+                cached_data = json.load(f)
+
+            cache_lat = cached_data.get("coordinates", {}).get("lat")
+            cache_lon = cached_data.get("coordinates", {}).get("lon")
+            solar_forecast = cached_data.get("solar_forecast")
+
+            if cache_lat is not None and cache_lon is not None and solar_forecast:
+                distance = calculate_distance(LATITUDE, LONGITUDE, cache_lat, cache_lon)
+
+                if distance < CACHE_DISTANCE_THRESHOLD_KM:
+                    print(f"[OKEY] Found cached solar forecast {distance:.1f} km away - using cache")
+                    return solar_forecast
+                else:
+                    print(f"[INFO] Cached data too far ({distance:.1f} km > {CACHE_DISTANCE_THRESHOLD_KM} km) - fetching from API")
+            else:
+                print("[INFO] Cached data missing location/solar_forecast - fetching from API")
+        except Exception as e:
+            print(f"[INFO] Error reading cache: {e} - fetching from API")
+    else:
+        print("[INFO] No cached data found - fetching from API")
+
     print(f"[INFO] Fetching Solar Irradiance Forecast for {date}...")
-    
+
     solar_url = (
         f"https://api.openweathermap.org/energy/2.0/solar/interval_data"
         f"?lat={LATITUDE}&lon={LONGITUDE}&date={date}&interval=1h"
