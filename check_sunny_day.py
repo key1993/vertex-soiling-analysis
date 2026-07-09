@@ -1,8 +1,5 @@
 import requests
-import json
 import sys
-import os
-from datetime import datetime
 
 # Get parameters from command line
 HA_URL = sys.argv[1]
@@ -15,7 +12,17 @@ def _api(path):
     sep = '&' if '?' in path else '?'
     return f"{HA_URL}{path}{sep}account_id={ACCOUNT_ID}"
 
-CACHE_DIR = "weather_cache"
+# Average cloud cover (%) across this site's own daylight hours, at or below
+# which the day is considered sunny enough for soiling analysis. Cloud cover %
+# is not the same metric as an energy ratio (thin cirrus vs. thick stratus
+# attenuate irradiance very differently at the same coverage %), so this
+# threshold is its own calibration.
+CLOUD_COVER_SUNNY_THRESHOLD_PCT = 20.0
+
+HA_COORD_SENSORS = {
+    "lat": "input_text.solar_system_latitude",
+    "lon": "input_text.solar_system_longitude",
+}
 
 # 1. Validate and clean HA_URL
 if not HA_URL.startswith(('http://', 'https://')):
@@ -24,107 +31,120 @@ if not HA_URL.startswith(('http://', 'https://')):
 
 HA_URL = HA_URL.rstrip('/')
 
-# 2. Load solar data from the cached JSON file produced by city_harvester.py
-def load_solar_from_cache(date):
-    cache_file = os.path.join(CACHE_DIR, f"{date}.json")
-    if not os.path.exists(cache_file):
-        print(f"❌ ERROR: Cache file not found: {cache_file}")
-        print(f"   Run city_harvester.py first to collect data for {date}.")
-        sys.exit(1)
-    with open(cache_file, 'r') as f:
-        cached = json.load(f)
-    solar = cached.get("solar_forecast")
-    if not solar:
-        print(f"❌ ERROR: No 'solar_forecast' key found in {cache_file}")
-        sys.exit(1)
-    print(f"[OK] Loaded solar data from cache: {cache_file}")
-    return solar
 
-# 3. Determine if day is sunny (Based on Total Daily Energy)
-def calculate_daily_sunniness(solar_data, threshold=0.9):
-    """
-    Calculates the ratio of total actual energy vs total potential energy.
-    This ignores 'how many hours' and looks at the total volume of light.
-    """
-    total_clear_ghi = 0
-    total_cloudy_ghi = 0
-    usable_hours = 0
-    
-    for interval in solar_data.get('intervals', []):
+def fetch_site_coordinates():
+    """Fetch this account's own solar_system_latitude/longitude from HA.
+    Returns (lat, lon) or (None, None) if not configured/reachable."""
+    headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
+    coords = {}
+    for key, entity_id in HA_COORD_SENSORS.items():
         try:
-            clear_ghi = interval['avg_irradiance']['clear_sky']['ghi']
-            cloudy_ghi = interval['avg_irradiance']['cloudy_sky']['ghi']
-            
-            # Skip low-light hours (Sunrise/Sunset/Night) to keep data clean
-            if clear_ghi < 50:
-                continue
-            
-            total_clear_ghi += clear_ghi
-            total_cloudy_ghi += cloudy_ghi
-            usable_hours += 1
-                
-        except (KeyError, TypeError):
-            continue
-    
-    if total_clear_ghi > 0:
-        actual_ratio = total_cloudy_ghi / total_clear_ghi
-        sunshine_pct = actual_ratio * 100
-    else:
-        actual_ratio = 0
-        sunshine_pct = 0
-    
-    # Day is 'Sunny' only if the total energy is >= 90% of theoretical max
-    is_sunny = actual_ratio >= threshold
-    
+            resp = requests.get(_api(f"/api/states/{entity_id}"), headers=headers, timeout=10)
+            if resp.status_code != 200:
+                return None, None
+            value = resp.json().get("state")
+            if value in (None, "unknown", "unavailable", ""):
+                return None, None
+            coords[key] = float(value)
+        except Exception as e:
+            print(f"[WARNING] Could not fetch {entity_id}: {e}")
+            return None, None
+    return coords.get("lat"), coords.get("lon")
+
+
+def fetch_cloud_cover_for_site(lat, lon, date):
+    """Fetch this specific site's own hourly cloud cover + sunrise/sunset from
+    Open-Meteo's archive API (free, no API key, parameterized per lat/lon -
+    unlike the shared single-city weather_cache/{date}.json)."""
+    url = (
+        "https://archive-api.open-meteo.com/v1/archive"
+        f"?latitude={lat}&longitude={lon}&start_date={date}&end_date={date}"
+        "&hourly=cloud_cover&daily=sunrise,sunset&timezone=auto"
+    )
+    resp = requests.get(url, timeout=20)
+    resp.raise_for_status()
+    data = resp.json()
+
+    hourly_time = data["hourly"]["time"]
+    hourly_cloud = data["hourly"]["cloud_cover"]
+    sunrise = data["daily"]["sunrise"][0]
+    sunset = data["daily"]["sunset"][0]
+
+    # timezone=auto returns local-time ISO strings with no UTC offset suffix,
+    # so lexical comparison against sunrise/sunset (same format, same day) is safe.
+    daylight_values = [
+        cloud for ts, cloud in zip(hourly_time, hourly_cloud)
+        if sunrise <= ts <= sunset and cloud is not None
+    ]
+
+    if not daylight_values:
+        raise ValueError("No daylight-hour cloud cover values returned")
+
+    avg_cloud_cover = sum(daylight_values) / len(daylight_values)
+
     return {
-        'is_sunny': is_sunny,
-        'sunshine_percentage': round(sunshine_pct, 1),
-        'total_clear_energy': round(total_clear_ghi, 2),
-        'total_cloudy_energy': round(total_cloudy_ghi, 2),
-        'usable_daylight_hours': usable_hours
+        'is_sunny': avg_cloud_cover <= CLOUD_COVER_SUNNY_THRESHOLD_PCT,
+        'avg_cloud_cover_pct': round(avg_cloud_cover, 1),
+        'usable_daylight_hours': len(daylight_values),
+        'sunrise': sunrise,
+        'sunset': sunset,
     }
 
-# 5. Update Home Assistant sensors
-def update_ha_sensors(result, date_str):
+
+def update_ha_sensors(is_sunny, info_text):
     headers = {"Authorization": f"Bearer {HA_TOKEN}", "Content-Type": "application/json"}
-    
-    # Update boolean (On/Off)
-    boolean_url = _api(f"/api/services/input_boolean/turn_{'on' if result['is_sunny'] else 'off'}")
+
+    boolean_url = _api(f"/api/services/input_boolean/turn_{'on' if is_sunny else 'off'}")
     requests.post(boolean_url, headers=headers, json={"entity_id": "input_boolean.sunny_day_detected"})
 
-    # Update text info
     text_url = _api("/api/services/input_text/set_value")
-    status_label = "SUNNY" if result['is_sunny'] else "CLOUDY"
-    info_text = (
-        f"{status_label}: {result['sunshine_percentage']}% total sunlight potential "
-        f"({result['usable_daylight_hours']}h analyzed) on {date_str}"
-    )
-    
     requests.post(text_url, headers=headers, json={
         "entity_id": "input_text.sunny_day_info",
         "value": info_text
     })
-    
+
     print(f"✅ HA Updated: {info_text}")
+
 
 # Main execution
 if __name__ == "__main__":
-    print(f"Analyzing {FORECAST_DATE} based on Total Daily Energy (Threshold: 90%)...")
+    print(f"Analyzing {FORECAST_DATE} for this account's own site...")
 
-    solar_data = load_solar_from_cache(FORECAST_DATE)
+    lat, lon = fetch_site_coordinates()
+    result = None
 
-    result = calculate_daily_sunniness(solar_data, threshold=0.9)
-    
-    print(f"📊 Total Clear-Sky GHI: {result['total_clear_energy']}")
-    print(f"📊 Total Actual GHI:    {result['total_cloudy_energy']}")
-    print(f"☀️ Final Ratio:        {result['sunshine_percentage']}%")
-    
-    update_ha_sensors(result, FORECAST_DATE)
-    
+    if lat is not None and lon is not None:
+        try:
+            result = fetch_cloud_cover_for_site(lat, lon, FORECAST_DATE)
+            print(f"📊 Site coordinates: {lat}, {lon}")
+            print(f"☁️ Avg daylight cloud cover: {result['avg_cloud_cover_pct']}%")
+        except Exception as e:
+            print(f"[WARNING] Open-Meteo per-site check failed: {e}")
+
+    if result is None:
+        # No coordinates configured, or Open-Meteo unreachable/failed - fail
+        # safe to "cloudy" rather than guessing from an unrelated location or
+        # a different metric, so the soiling calculation never runs on a day
+        # whose sky conditions could not actually be verified for this site.
+        reason = "no site coordinates configured" if lat is None or lon is None else "Open-Meteo check failed"
+        print(f"[WARNING] Cannot verify sky conditions for this site ({reason}) - treating {FORECAST_DATE} as CLOUDY")
+        result = {'is_sunny': False, 'avg_cloud_cover_pct': None, 'usable_daylight_hours': 0}
+
+    status_label = "SUNNY" if result['is_sunny'] else "CLOUDY"
+    if result['avg_cloud_cover_pct'] is not None:
+        info_text = (
+            f"{status_label}: {result['avg_cloud_cover_pct']}% avg cloud cover "
+            f"({result['usable_daylight_hours']}h daylight, site {lat:.4f},{lon:.4f}) on {FORECAST_DATE}"
+        )
+    else:
+        info_text = f"{status_label}: unable to verify sky conditions for this site on {FORECAST_DATE}"
+
+    update_ha_sensors(result['is_sunny'], info_text)
+
     # Exit codes for GitHub Actions / Automation
     if result['is_sunny']:
-        print("✅ SUCCESS: Total energy meets 90% threshold.")
+        print("✅ SUCCESS: Site is sunny enough for soiling analysis.")
         sys.exit(0)
     else:
-        print("❌ FAILED: Total energy below 90% threshold.")
+        print("❌ FAILED: Site is too cloudy (or unverifiable) for soiling analysis.")
         sys.exit(1)
