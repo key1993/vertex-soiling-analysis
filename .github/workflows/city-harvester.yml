@@ -1,35 +1,35 @@
-name: Daily City Weather Harvester
+  name: Daily City Weather Harvester
 
-on:
-  workflow_dispatch:
+  on:
+    workflow_dispatch:
 
-jobs:
-  harvest:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  jobs:
+    harvest:
+      runs-on: ubuntu-latest
+      permissions:
+        contents: write
 
-    steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      steps:
+        - name: Checkout repo
+          uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
+        - name: Set up Python
+          uses: actions/setup-python@v5
+          with:
+            python-version: "3.11"
 
-      - name: Install dependencies
-        run: pip install requests
+        - name: Install dependencies
+          run: pip install requests
 
-      - name: Run Harvester
-        env:
-          OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
-        run: python city_harvester.py
+        - name: Run Harvester
+          env:
+            OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+          run: python city_harvester.py
 
-      - name: Commit Daily JSON
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add weather_cache/*.json
-          git commit -m "Add weather data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes"
-          git push
+        - name: Commit Daily JSON
+          run: |
+            git config --local user.email "github-actions[bot]@users.noreply.github.com"
+            git config --local user.name "github-actions[bot]"
+            git add weather_cache/*.json
+            git commit -m "Add weather data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes"
+            git push
