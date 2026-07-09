@@ -383,6 +383,30 @@ def fetch_weather_data(date):
     print(f"[OKEY] Successfully retrieved weather data for {len(weather_data)} hours.")
     return weather_data
 
+def fetch_cloud_cover_data(lat, lon, start_date, end_date):
+    """Fetch hourly cloud cover (%) for this site's own coordinates from
+    Open-Meteo's archive API (same source check_sunny_day.py uses for its
+    per-site sunny/cloudy verdict) - for display in the Excel report only,
+    not used in any calculation. Returns {"YYYY-MM-DDTHH:00": cloud_cover_pct},
+    keyed by local hour (timezone=auto matches this site's own actual_time),
+    or {} on any failure."""
+    url = (
+        "https://archive-api.open-meteo.com/v1/archive"
+        f"?latitude={lat}&longitude={lon}&start_date={start_date}&end_date={end_date}"
+        "&hourly=cloud_cover&timezone=auto"
+    )
+    try:
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+        hourly_time = data["hourly"]["time"]
+        hourly_cloud = data["hourly"]["cloud_cover"]
+        print(f"[OKEY] Retrieved {len(hourly_time)} hourly cloud cover readings from Open-Meteo.")
+        return dict(zip(hourly_time, hourly_cloud))
+    except Exception as e:
+        print(f"[WARNING] Could not fetch cloud cover data from Open-Meteo: {e}")
+        return {}
+
 def merge_data(weather_data, solar_forecast, altitude):
     """Merge weather and solar forecast data"""
     print("[INFO] Merging data and calculating solar position...")
@@ -572,48 +596,52 @@ def calculate_hourly_averages(all_results):
     
     return hourly_averages
 
-def run_theoretical_calculations(weather_data_list):
+def run_theoretical_calculations(weather_data_list, cloud_cover_map=None):
     """Run theoretical calculations based on weather data"""
     all_results = []
-    
-    for entry in weather_data_list: 
+    cloud_cover_map = cloud_cover_map or {}
+
+    for entry in weather_data_list:
         date = entry['date']
         actual_time = entry['actual_time']
-        
+
         ghi = entry['ghi']
         dni = entry['dni']
         dhi = entry['dhi']
         ambient_temp = entry['ambient_temp']
         wind_speed = entry['wind_speed']
-        
+
         hour, minute, second = map(int, actual_time.split(':'))
         year, month, day = map(int, date.split('-'))
-        
+
         timestamp = pytz.timezone(TIMEZONE).localize(datetime(year, month, day, hour, minute, second))
-        
+
         if dni < 10:
             continue
-        
+
         results, weather_df = calculate_poa_irradiance_detailed(
             LATITUDE, LONGITUDE, TILT, AZIMUTH, timestamp,
             dni=dni, ghi=ghi, dhi=dhi, albedo=ALBEDO
         )
-        
+
         tcell = calculate_tcell_faiman(ghi, ambient_temp, wind_speed)
         system_results = calculate_system_output_dc(results['poa_global_after_iam'], PANEL_PEAK_POWER, NUMBER_OF_PANELS, tcell, TEMP_COEFFICIENT)
-        
+
+        cloud_cover_pct = cloud_cover_map.get(f"{date}T{hour:02d}:00")
+
         all_results.append({
             'date': date,
             'actual_time': actual_time,
+            'cloud_cover_pct': cloud_cover_pct,
             'ghi': ghi,
             'dni': dni,
             'poa': results['poa_global_after_iam'],
             'tcell': tcell,
             'dc_output': system_results['e_array_actual']
         })
-    
+
     hourly_averages = calculate_hourly_averages(all_results)
-    
+
     return all_results, hourly_averages
 
 def get_date_range_from_weather_data(weather_data):
@@ -648,7 +676,7 @@ def convert_theoretical_to_dataframe(all_results, hourly_averages):
         except Exception:
             datetime_indices.append(datetime.now())
     
-    numeric_cols = ['ghi', 'dni', 'poa', 'tcell', 'dc_output']
+    numeric_cols = ['ghi', 'dni', 'poa', 'tcell', 'dc_output', 'cloud_cover_pct']
     for col in numeric_cols:
         if col in detailed_df.columns:
             detailed_df[col] = pd.to_numeric(detailed_df[col], errors='coerce')
@@ -1140,10 +1168,15 @@ def main():
     
     # Step 6: Merge data
     merged_weather_data = merge_data(weather_data, solar_data, altitude)
-    
+
+    # Step 6b: Fetch cloud cover data for the Excel report (display only,
+    # not used in any calculation above)
+    print("[INFO] Fetching cloud cover data from Open-Meteo for Excel report...")
+    cloud_cover_map = fetch_cloud_cover_data(LATITUDE, LONGITUDE, FORECAST_DATE, FORECAST_DATE)
+
     # Step 7: Run theoretical calculations
     print("\n=== PHASE 3: RUNNING THEORETICAL CALCULATIONS ===")
-    all_results, hourly_averages = run_theoretical_calculations(merged_weather_data)
+    all_results, hourly_averages = run_theoretical_calculations(merged_weather_data, cloud_cover_map)
     
     # Step 8: Get date range
     start_date, end_date = get_date_range_from_weather_data(merged_weather_data)
