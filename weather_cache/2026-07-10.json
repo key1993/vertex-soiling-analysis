@@ -1,0 +1,335 @@
+{
+  "date": "2026-07-10",
+  "city": "Home",
+  "coordinates": {
+    "lat": 32.457321,
+    "lon": 35.908203
+  },
+  "solar_forecast": {
+    "lat": 32.457321,
+    "lon": 35.908203,
+    "date": "2026-07-10",
+    "interval": "1h",
+    "tz": "+03:00",
+    "sunrise": "2026-07-10T05:37:13",
+    "sunset": "2026-07-10T19:46:04",
+    "intervals": [
+      {
+        "start": "00:00",
+        "end": "00:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      },
+      {
+        "start": "01:00",
+        "end": "01:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      },
+      {
+        "start": "02:00",
+        "end": "02:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      },
+      {
+        "start": "03:00",
+        "end": "03:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      },
+      {
+        "start": "04:00",
+        "end": "04:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      },
+      {
+        "start": "05:00",
+        "end": "05:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 10.47
+          }
+        }
+      },
+      {
+        "start": "06:00",
+        "end": "06:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 99.16
+          }
+        }
+      },
+      {
+        "start": "07:00",
+        "end": "07:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 338.71
+          }
+        }
+      },
+      {
+        "start": "08:00",
+        "end": "08:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 536.6
+          }
+        }
+      },
+      {
+        "start": "09:00",
+        "end": "09:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 770.84
+          }
+        }
+      },
+      {
+        "start": "10:00",
+        "end": "10:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 958.6
+          }
+        }
+      },
+      {
+        "start": "11:00",
+        "end": "11:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 1099.02
+          }
+        }
+      },
+      {
+        "start": "12:00",
+        "end": "12:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 1140.02
+          }
+        }
+      },
+      {
+        "start": "13:00",
+        "end": "13:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 1109.59
+          }
+        }
+      },
+      {
+        "start": "14:00",
+        "end": "14:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 1028.95
+          }
+        }
+      },
+      {
+        "start": "15:00",
+        "end": "15:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 847.49
+          }
+        }
+      },
+      {
+        "start": "16:00",
+        "end": "16:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 639.64
+          }
+        }
+      },
+      {
+        "start": "17:00",
+        "end": "17:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 414.49
+          }
+        }
+      },
+      {
+        "start": "18:00",
+        "end": "18:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 212.24
+          }
+        }
+      },
+      {
+        "start": "19:00",
+        "end": "19:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 7.25
+          }
+        }
+      },
+      {
+        "start": "20:00",
+        "end": "20:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 16.0
+          }
+        }
+      },
+      {
+        "start": "21:00",
+        "end": "21:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      },
+      {
+        "start": "22:00",
+        "end": "22:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      },
+      {
+        "start": "23:00",
+        "end": "23:59",
+        "avg_irradiance": {
+          "cloudy_sky": {
+            "ghi": 0.0
+          }
+        }
+      }
+    ]
+  },
+  "ambient_weather": [
+    {
+      "hour": 5,
+      "temp": 19.8,
+      "wind_speed": 0.31,
+      "source": "arabia"
+    },
+    {
+      "hour": 6,
+      "temp": 20.0,
+      "wind_speed": 0.9,
+      "source": "arabia"
+    },
+    {
+      "hour": 7,
+      "temp": 21.14,
+      "wind_speed": 1.23,
+      "source": "arabia"
+    },
+    {
+      "hour": 8,
+      "temp": 22.72,
+      "wind_speed": 0.8,
+      "source": "arabia"
+    },
+    {
+      "hour": 9,
+      "temp": 24.72,
+      "wind_speed": 1.11,
+      "source": "arabia"
+    },
+    {
+      "hour": 10,
+      "temp": 26.46,
+      "wind_speed": 1.15,
+      "source": "arabia"
+    },
+    {
+      "hour": 11,
+      "temp": 27.93,
+      "wind_speed": 1.41,
+      "source": "arabia"
+    },
+    {
+      "hour": 12,
+      "temp": 29.16,
+      "wind_speed": 1.98,
+      "source": "arabia"
+    },
+    {
+      "hour": 13,
+      "temp": 30.13,
+      "wind_speed": 1.84,
+      "source": "arabia"
+    },
+    {
+      "hour": 14,
+      "temp": 31.14,
+      "wind_speed": 2.29,
+      "source": "arabia"
+    },
+    {
+      "hour": 15,
+      "temp": 31.8,
+      "wind_speed": 2.38,
+      "source": "arabia"
+    },
+    {
+      "hour": 16,
+      "temp": 31.33,
+      "wind_speed": 2.87,
+      "source": "arabia"
+    },
+    {
+      "hour": 17,
+      "temp": 30.99,
+      "wind_speed": 2.25,
+      "source": "arabia"
+    },
+    {
+      "hour": 18,
+      "temp": 29.8,
+      "wind_speed": 2.05,
+      "source": "arabia"
+    },
+    {
+      "hour": 19,
+      "temp": 27.64,
+      "wind_speed": 1.68,
+      "source": "arabia"
+    },
+    {
+      "hour": 20,
+      "temp": 26.2,
+      "wind_speed": 2.1,
+      "source": "arabia"
+    }
+  ],
+  "harvested_at": "2026-07-10T20:01:56.813447+03:00",
+  "source": "local_sensor"
+}
