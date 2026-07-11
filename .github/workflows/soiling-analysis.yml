@@ -58,6 +58,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    concurrency:
+      group: vertex-soiling-main-push
+      cancel-in-progress: false
 
     steps:
       - name: Checkout repository
@@ -88,8 +91,11 @@ jobs:
           git config --local user.name "github-actions[bot]"
           git add reports/
           git commit -m "Add soiling report for ${{ github.event.client_payload.forecast_date || github.event.inputs.forecast_date }} [skip ci]" || echo "No new report to commit"
-          git pull --rebase origin main
-          git push
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin main && git push && break
+            echo "Push rejected (attempt $i), retrying after backoff..."
+            sleep $(( (RANDOM % 10) + 5 ))
+          done
 
       - name: Upload results
         uses: actions/upload-artifact@v4
