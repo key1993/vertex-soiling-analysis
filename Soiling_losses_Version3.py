@@ -110,6 +110,17 @@ HA_CONFIG_SENSORS = {
     'MAX_TOTAL_DC_POWER': "input_number.max_total_dc_power"
 }
 
+# Fields the theoretical model cannot safely run without a real fetched value
+# for — falling back to their hardcoded 0 default would silently model a
+# flat/nonexistent system instead of the real one. MAX_TOTAL_DC_POWER is
+# deliberately excluded: 0 there has a defined downstream meaning ("no
+# clipping cap observed yet, don't cap"), unlike a missing TILT or
+# PANEL_PEAK_POWER, which would produce a wrong-but-plausible-looking number.
+REQUIRED_CONFIG_FIELDS = (
+    'LATITUDE', 'LONGITUDE', 'TILT', 'AZIMUTH',
+    'PANEL_PEAK_POWER', 'NUMBER_OF_PANELS', 'INVERTER_CAPACITY_KW',
+)
+
 # ===== EXISTING FUNCTIONS =====
 
 def fetch_configuration_from_ha():
@@ -122,34 +133,40 @@ def fetch_configuration_from_ha():
         "Authorization": f"Bearer {ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-    
+
+    fetched_ok = {}
+
     for config_name, sensor_entity_id in HA_CONFIG_SENSORS.items():
         try:
             url = _api(f"/api/states/{sensor_entity_id}")
             response = requests.get(url, headers=headers)
-            
+
             if response.status_code == 200:
                 sensor_data = response.json()
                 value = sensor_data.get('state')
-                
+
                 if value not in ('unknown', 'unavailable'):
                     if config_name in ('LATITUDE', 'LONGITUDE', 'TILT', 'AZIMUTH', 'INVERTER_CAPACITY_KW', 'MAX_TOTAL_DC_POWER'):
                         value = float(value)
                     elif config_name in ('PANEL_PEAK_POWER', 'NUMBER_OF_PANELS'):
                         value = int(value)
-                    
+
                     globals()[config_name] = value
+                    fetched_ok[config_name] = True
                     print(f"[OKEY] {config_name} updated to:  {value}")
-                else: 
+                else:
+                    fetched_ok[config_name] = False
                     print(f"[WARNING] {config_name} sensor returned:  {value}, using default value:  {globals()[config_name]}")
             else:
+                fetched_ok[config_name] = False
                 print(f"[WARNING] Failed to fetch {config_name} from sensor {sensor_entity_id}: {response.status_code}")
                 print(f"   Using default value: {globals()[config_name]}")
-                
-        except Exception as e: 
+
+        except Exception as e:
+            fetched_ok[config_name] = False
             print(f"[INFO] Error fetching {config_name}:  {e}")
             print(f"   Using default value:  {globals()[config_name]}")
-    
+
     print("\n=== Configuration Values Summary ===")
     print(f"LATITUDE: {LATITUDE}")
     print(f"LONGITUDE: {LONGITUDE}")
@@ -160,6 +177,13 @@ def fetch_configuration_from_ha():
     print(f"INVERTER_CAPACITY_KW: {INVERTER_CAPACITY_KW}")
     print(f"MAX_TOTAL_DC_POWER: {MAX_TOTAL_DC_POWER}")
     print("=======================================\n")
+
+    missing = [name for name in REQUIRED_CONFIG_FIELDS if not fetched_ok.get(name)]
+    if missing:
+        print(f"❌ ERROR: Required configuration field(s) could not be fetched from Home Assistant: {', '.join(missing)}")
+        print("   Refusing to run the theoretical model on placeholder defaults (e.g. TILT=0) —")
+        print("   that would silently produce a plausible-looking but wrong soiling number instead of failing visibly.")
+        sys.exit(1)
 
 def get_altitude(lat, lon):
     """Fetch altitude (elevation) for given coordinates in meters"""
@@ -208,7 +232,11 @@ def recompute_dni_dhi_for_site(solar_forecast, latitude, longitude, altitude):
             longitude=longitude,
             altitude=altitude
         )
-        zenith = solpos["apparent_zenith"]
+        # pvlib.irradiance.erbs() explicitly requires the TRUE (not
+        # refraction-corrected) zenith angle — apparent_zenith would bias kt
+        # and the resulting DNI right in the low-sun-angle hours where Erbs
+        # is already least stable.
+        zenith = solpos["zenith"]
 
         erbs_out = pvlib.irradiance.erbs(
             pd.Series([ghi], index=[corrected_time]),
@@ -459,8 +487,6 @@ def merge_data(weather_data, solar_forecast, altitude):
     return merged_output
 
 def get_iam_for_angle(angle, angles=IAM_ANGLES, values=IAM_VALUES):
-    if abs(angle - 34.54) < 0.01:
-        return 0.9975
     iam_interp = PchipInterpolator(angles, values, extrapolate=True)
     return float(iam_interp(angle))
 
@@ -468,9 +494,13 @@ def calculate_ground_reflected(surface_tilt, ghi, albedo=0.2):
     tilt_rad = np.radians(surface_tilt)
     return ghi * albedo * (1 - np.cos(tilt_rad)) / 2
 
-def calculate_tcell_faiman(ghi, ambient_temp, wind_speed, u_c=25.0, u_v=6.84):
+def calculate_tcell_faiman(poa_global, ambient_temp, wind_speed, u_c=25.0, u_v=6.84):
+    """pvlib's Faiman model is defined on plane-of-array irradiance, not GHI —
+    passing GHI here understates cell temperature (and therefore
+    under-applies temperature derating) whenever POA diverges from GHI,
+    which is every hour off solar noon for a tilted array."""
     u = u_c + u_v * wind_speed
-    return round(ambient_temp + ghi / u, 2)
+    return round(ambient_temp + poa_global / u, 2)
 
 def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timestamp, dni, ghi, dhi, albedo=0.2):
     location = pvlib.location.Location(latitude, longitude, altitude=ALTITUDE)
@@ -531,8 +561,8 @@ def calculate_poa_irradiance_detailed(latitude, longitude, tilt, azimuth, timest
         iam_loss = beam_trp * (1 - iam_value)
         beam_after_iam = beam_trp - iam_loss
 
-    poa_global = beam_trp + isotropic + circumsolar + alb_trp
-    poa_after_iam = beam_after_iam + isotropic + circumsolar + alb_trp
+    poa_global = beam_trp + isotropic + circumsolar + horizon + alb_trp
+    poa_after_iam = beam_after_iam + isotropic + circumsolar + horizon + alb_trp
 
     return {
         'BeamTrp': beam_trp.iloc[0],
@@ -624,7 +654,7 @@ def run_theoretical_calculations(weather_data_list, cloud_cover_map=None):
             dni=dni, ghi=ghi, dhi=dhi, albedo=ALBEDO
         )
 
-        tcell = calculate_tcell_faiman(ghi, ambient_temp, wind_speed)
+        tcell = calculate_tcell_faiman(results['poa_global_after_iam'], ambient_temp, wind_speed)
         system_results = calculate_system_output_dc(results['poa_global_after_iam'], PANEL_PEAK_POWER, NUMBER_OF_PANELS, tcell, TEMP_COEFFICIENT)
 
         cloud_cover_pct = cloud_cover_map.get(f"{date}T{hour:02d}:00")
