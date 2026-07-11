@@ -8,6 +8,9 @@
       runs-on: ubuntu-latest
       permissions:
         contents: write
+      concurrency:
+        group: vertex-soiling-main-push
+        cancel-in-progress: false
 
       steps:
         - name: Checkout repo
@@ -32,4 +35,8 @@
             git config --local user.name "github-actions[bot]"
             git add weather_cache/*.json
             git commit -m "Add weather data for $(date +'%Y-%m-%d') [skip ci]" || echo "No changes"
-            git push
+            for i in 1 2 3 4 5; do
+              git pull --rebase origin main && git push && break
+              echo "Push rejected (attempt $i), retrying after backoff..."
+              sleep $(( (RANDOM % 10) + 5 ))
+            done
