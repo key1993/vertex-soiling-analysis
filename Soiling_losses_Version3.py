@@ -203,9 +203,27 @@ def get_altitude(lat, lon):
         print("[WARNING] Could not retrieve altitude from API, using default value")
         return 770
     
-    except Exception as e: 
+    except Exception as e:
         print(f"[WARNING] Error retrieving altitude: {e}")
         return 770
+
+def _local_hour_to_utc(date_str, hour_label):
+    """Convert a local wall-clock hour label into the true UTC instant it
+    represents in TIMEZONE.
+
+    Both city_harvester.py (OpenWeatherMap) and local_solar_harvester.py's
+    aggregate_to_schema() (sensor + Arabia Weather) label solar_forecast.
+    intervals[].start (e.g. "06:00") and ambient_weather[].hour (e.g. 6) in
+    this account's own local clock time - identical convention, whichever
+    source produced weather_cache/{date}.json. Every reader must resolve a
+    given local hour to the same UTC instant on both the solar side and the
+    ambient side, or hourly joins in merge_data() silently misalign by
+    TIMEZONE's UTC offset (3h for Asia/Amman) - see docs/harvest.md.
+    """
+    year, month, day = map(int, date_str.split('-'))
+    hour = int(str(hour_label).split(':')[0])
+    local_dt = pytz.timezone(TIMEZONE).localize(datetime(year, month, day, hour, 0, 0))
+    return pd.Timestamp(local_dt).tz_convert("UTC")
 
 def recompute_dni_dhi_for_site(solar_forecast, latitude, longitude, altitude):
     """Re-derive DNI/DHI via pvlib's Erbs decomposition using THIS site's own
@@ -223,8 +241,7 @@ def recompute_dni_dhi_for_site(solar_forecast, latitude, longitude, altitude):
         if ghi is None:
             continue
 
-        utc_time = pd.Timestamp(f"{forecast_date}T{interval['start']}:00", tz="UTC")
-        corrected_time = utc_time - pd.Timedelta(hours=3)
+        corrected_time = _local_hour_to_utc(forecast_date, interval['start'])
 
         solpos = get_solarposition(
             time=corrected_time,
@@ -339,14 +356,16 @@ def fetch_weather_data(date):
                 if distance < CACHE_DISTANCE_THRESHOLD_KM:
                     print(f"[OKEY] Found cached weather data {distance:.1f} km away - using cache")
                     
-                    # Convert cached data to expected format
+                    # Convert cached data to expected format. ambient_weather[].hour
+                    # is a local-clock label (same convention solar_forecast.intervals
+                    # use) - must resolve to the same UTC instant merge_data() derives
+                    # for the matching solar interval, or the two silently misalign.
                     weather_data = []
-                    date_obj = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-                    
+
                     for hour_data in cached_data.get("ambient_weather", []):
                         hour = hour_data.get("hour", 0)
-                        utc_dt = date_obj + timedelta(hours=hour)
-                        timestamp_str = utc_dt.strftime('%Y-%m-%dT%H:%M:%S.0000000Z')
+                        utc_ts = _local_hour_to_utc(date, hour)
+                        timestamp_str = utc_ts.strftime('%Y-%m-%dT%H:%M:%S.0000000Z')
                         
                         entry = {
                             "date": date,
@@ -443,8 +462,7 @@ def merge_data(weather_data, solar_forecast, altitude):
     forecast_map = {}
     
     for interval in solar_forecast["intervals"]:
-        utc_time = pd.Timestamp(f"{forecast_date}T{interval['start']}:00", tz="UTC")
-        corrected_time = utc_time - pd.Timedelta(hours=3)
+        corrected_time = _local_hour_to_utc(forecast_date, interval['start'])
         forecast_map[corrected_time] = {
             "ghi": interval["avg_irradiance"]["cloudy_sky"]["ghi"],
             "dni": interval["avg_irradiance"]["cloudy_sky"]["dni"],
