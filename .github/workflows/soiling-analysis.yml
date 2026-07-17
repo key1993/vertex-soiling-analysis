@@ -58,9 +58,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    concurrency:
-      group: vertex-soiling-main-push
-      cancel-in-progress: false
 
     steps:
       - name: Checkout repository
