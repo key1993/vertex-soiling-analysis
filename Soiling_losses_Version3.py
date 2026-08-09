@@ -266,14 +266,35 @@ def recompute_dni_dhi_for_site(solar_forecast, latitude, longitude, altitude):
 
     return solar_forecast
 
+def _resolve_weather_cache_path(date):
+    """Prefer this account's own scoped cache (weather_cache/{account_id}/{date}.json)
+    over the legacy shared weather_cache/{date}.json path.
+
+    Every account used to read the same bare weather_cache/{date}.json regardless of
+    account, so whichever account's harvester committed last for a given calendar date
+    silently clobbered every other account's cache with its own coordinates - see
+    docs/bugs/soiling_weather_cache_cross_account_collision.md. The legacy path is kept
+    as a fallback for city_harvester.py's generic (non-account-specific) Irbid cache
+    and for runs with no ACCOUNT_ID."""
+    if ACCOUNT_ID:
+        account_cache_file = os.path.join("weather_cache", ACCOUNT_ID, f"{date}.json")
+        if os.path.exists(account_cache_file):
+            return account_cache_file
+
+    legacy_cache_file = os.path.join("weather_cache", f"{date}.json")
+    if os.path.exists(legacy_cache_file):
+        return legacy_cache_file
+
+    return None
+
 def fetch_solar_forecast(date):
     """Fetch solar irradiance forecast data, preferring a nearby cached
-    weather_cache/{date}.json (e.g. from the local GHI sensor harvester)
+    weather_cache/{account_id}/{date}.json (e.g. from the local GHI sensor harvester)
     over the live OpenWeatherMap API, mirroring fetch_weather_data()'s cache
     check below."""
-    cache_file = os.path.join("weather_cache", f"{date}.json")
+    cache_file = _resolve_weather_cache_path(date)
 
-    if os.path.exists(cache_file):
+    if cache_file:
         try:
             with open(cache_file, 'r') as f:
                 cached_data = json.load(f)
@@ -338,9 +359,9 @@ def fetch_weather_data(date):
     print(f"[INFO] Checking for cached weather data for {date}...")
     
     # Check for cached weather data
-    cache_file = os.path.join("weather_cache", f"{date}.json")
-    
-    if os.path.exists(cache_file):
+    cache_file = _resolve_weather_cache_path(date)
+
+    if cache_file:
         try:
             with open(cache_file, 'r') as f:
                 cached_data = json.load(f)
