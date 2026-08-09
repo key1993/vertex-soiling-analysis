@@ -331,7 +331,12 @@ def fetch_solar_forecast(date):
     if solar_response.status_code == 200:
         solar_data = solar_response.json()
         print(f"[OKEY] Successfully retrieved solar forecast with {len(solar_data.get('intervals', []))} hourly records.")
-        return solar_data
+        # Recompute DNI/DHI from GHI the same way the cache path does, rather
+        # than trusting OpenWeatherMap's own cloudy_sky.dni/dhi split as-is -
+        # for a same-day query these have come back effectively unusable
+        # (GHI present, DNI ~0 for every hour) even though GHI itself is
+        # populated correctly. See docs/bugs/soiling_weather_cache_cross_account_collision.md.
+        return recompute_dni_dhi_for_site(solar_data, LATITUDE, LONGITUDE, ALTITUDE)
     else:
         print(f"[INFO] Solar API request failed:  {solar_response.status_code}")
         print(solar_response.text)
