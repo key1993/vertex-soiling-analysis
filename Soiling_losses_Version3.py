@@ -3,7 +3,7 @@ import json
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 import pvlib
 from pvlib.solarposition import get_solarposition
 from scipy.interpolate import PchipInterpolator
@@ -409,26 +409,27 @@ def fetch_weather_data(date):
     
     # Fall back to API calls
     print(f"[INFO] Fetching Weather Data for {date}...")
-    
-    date_obj = datetime.strptime(date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
-    timestamps = [
-        int((date_obj + timedelta(hours=h)).timestamp())
-        for h in range(24)
-    ]
-    
+
+    # Query at the UTC instant of each LOCAL (TIMEZONE) hour of `date`, not each
+    # literal UTC hour - merge_data()'s forecast_map is keyed by _local_hour_to_utc()
+    # on the solar side, so a naive UTC-day iteration here misaligns every row by
+    # TIMEZONE's UTC offset (3h for Asia/Amman), making every forecast_map lookup
+    # miss and every row default to ghi=dni=dhi=0 - see
+    # docs/bugs/soiling_weather_cache_cross_account_collision.md.
     weather_data = []
-    
-    for ts in timestamps:
-        utc_dt = datetime.fromtimestamp(ts, tz=timezone.utc)
-        timestamp_str = utc_dt.strftime('%Y-%m-%dT%H:%M:%S.0000000Z')
-        
-        print(f"  Fetching {timestamp_str} ...")
-        
+
+    for local_hour in range(24):
+        utc_ts = _local_hour_to_utc(date, local_hour)
+        ts = int(utc_ts.timestamp())
+        timestamp_str = utc_ts.strftime('%Y-%m-%dT%H:%M:%S.0000000Z')
+
+        print(f"  Fetching {timestamp_str} (local {local_hour:02d}:00 {TIMEZONE}) ...")
+
         url = (
             f"https://api.openweathermap.org/data/3.0/onecall/timemachine"
             f"?lat={LATITUDE}&lon={LONGITUDE}&dt={ts}&appid={API_KEY}&units=metric"
         )
-        
+
         response = requests.get(url)
         if response.status_code == 200:
             try:
@@ -1238,6 +1239,16 @@ def main():
     # Step 6: Merge data
     merged_weather_data = merge_data(weather_data, solar_data, altitude)
 
+    # Diagnostic: surface a merge-alignment failure (weather_data's timestamps
+    # not landing on forecast_map's keys) as a visible log line instead of a
+    # silently empty report - see docs/bugs/soiling_weather_cache_cross_account_collision.md.
+    nonzero_ghi_rows = sum(1 for e in merged_weather_data if (e.get('ghi') or 0) > 0)
+    print(f"[INFO] Merged {len(merged_weather_data)} weather rows, {nonzero_ghi_rows} with non-zero GHI")
+    if merged_weather_data and nonzero_ghi_rows == 0:
+        sample = merged_weather_data[len(merged_weather_data) // 2]
+        print(f"[WARNING] Every merged row has GHI=0 - solar_forecast and weather_data timestamps "
+              f"likely failed to align. Sample row: {sample}")
+
     # Step 6b: Fetch cloud cover data for the Excel report (display only,
     # not used in any calculation above)
     print("[INFO] Fetching cloud cover data from Open-Meteo for Excel report...")
@@ -1246,7 +1257,8 @@ def main():
     # Step 7: Run theoretical calculations
     print("\n=== PHASE 3: RUNNING THEORETICAL CALCULATIONS ===")
     all_results, hourly_averages = run_theoretical_calculations(merged_weather_data, cloud_cover_map)
-    
+    print(f"[INFO] {len(all_results)} theoretical rows produced from {len(merged_weather_data)} merged weather rows")
+
     # Step 8: Get date range
     start_date, end_date = get_date_range_from_weather_data(merged_weather_data)
     
