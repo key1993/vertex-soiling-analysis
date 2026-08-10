@@ -2,17 +2,17 @@
   "date": "2026-08-10",
   "city": "Home",
   "coordinates": {
-    "lat": 31.9454,
-    "lon": 35.9284
+    "lat": 32.456619,
+    "lon": 35.909048
   },
   "solar_forecast": {
-    "lat": 31.9454,
-    "lon": 35.9284,
+    "lat": 32.456619,
+    "lon": 35.909048,
     "date": "2026-08-10",
     "interval": "1h",
     "tz": "+03:00",
-    "sunrise": "2026-08-10T05:57:44",
-    "sunset": "2026-08-10T19:25:09",
+    "sunrise": "2026-08-10T05:56:59",
+    "sunset": "2026-08-10T19:26:03",
     "intervals": [
       {
         "start": "00:00",
@@ -190,7 +190,7 @@
         "end": "19:59",
         "avg_irradiance": {
           "cloudy_sky": {
-            "ghi": 8.24
+            "ghi": 10.13
           }
         }
       },
@@ -319,11 +319,11 @@
     },
     {
       "hour": 19,
-      "temp": 31.49,
-      "wind_speed": 1.29,
+      "temp": 31.17,
+      "wind_speed": 1.18,
       "source": "arabia"
     }
   ],
-  "harvested_at": "2026-08-10T19:42:27.739437+03:00",
+  "harvested_at": "2026-08-10T21:03:47.627106+03:00",
   "source": "local_sensor"
 }
